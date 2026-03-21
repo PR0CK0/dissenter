@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import random
+import shutil
 from pathlib import Path
 
+import questionary
 import typer
 from platformdirs import user_config_dir
 from rich.console import Console
@@ -10,6 +13,19 @@ from rich.panel import Panel
 from .detect import detect_clis, detect_ollama_model_sizes, detect_ollama_models, infer_auth
 
 _GB = 1024 ** 3
+
+_ALL_ROLES = [
+    "devil's advocate",
+    "pragmatist",
+    "skeptic",
+    "contrarian",
+    "analyst",
+    "researcher",
+    "second opinion",
+    "chairman",
+    "conservative",
+    "liberal",
+]
 
 _DEBATE_ROLES = [
     "skeptic",
@@ -20,22 +36,96 @@ _DEBATE_ROLES = [
     "researcher",
 ]
 
+# Curated cloud model suggestions shown in autocomplete
+_EXIT_MESSAGES = [
+    "The dissent stands unresolved.",
+    "No consensus reached. The question endures.",
+    "Deliberation interrupted — the verdict remains contested.",
+    "The panel adjourned without a decision.",
+    "Some questions resist resolution.",
+    "The debate was cut short. The truth, as always, elusive.",
+    "Silence fell over the chamber.",
+    "The dissent was not defeated — merely paused.",
+    "Not all debates reach their conclusion.",
+    "Withdrawn before the chairman could speak.",
+    "Agreement was not reached. Perhaps it never will be.",
+    "The argument continues elsewhere.",
+]
+
+
+def exit_message() -> str:
+    return random.choice(_EXIT_MESSAGES)
+
+
+_CLOUD_MODELS = [
+    "anthropic/claude-sonnet-4-6",
+    "anthropic/claude-opus-4-6",
+    "anthropic/claude-haiku-4-5-20251001",
+    "gemini/gemini-2.0-flash",
+    "gemini/gemini-2.0-pro",
+    "openai/gpt-4o",
+    "openai/gpt-4o-mini",
+    "groq/llama-3.1-70b-versatile",
+    "groq/mixtral-8x7b-32768",
+    "mistral/mistral-large-latest",
+    "perplexity/sonar-pro",
+]
+
+
+def _q(prompt) -> str:
+    """Run a questionary prompt; exit cleanly on Ctrl+C."""
+    try:
+        result = prompt.ask()
+    except KeyboardInterrupt:
+        result = None
+    if result is None:
+        print(f"\n  {exit_message()}\n")
+        raise typer.Exit(0)
+    return result
+
 
 def _collect_model(
     label: str,
     clis: dict[str, str | None],
+    ollama_models: list[str],
     default_role: str,
     console: Console,
 ) -> dict:
     console.print(f"\n  [bold]{label}[/bold]")
-    model_id = typer.prompt("    ID (e.g. ollama/mistral, anthropic/claude-sonnet-4-6)")
-    role = typer.prompt("    Role", default=default_role)
-    auth = typer.prompt("    Auth (api/cli)", default=infer_auth(model_id, clis))
-    timeout = int(typer.prompt("    Timeout (s)", default="180"))
-    m: dict = {"id": model_id, "role": role, "auth": auth, "timeout": timeout}
+
+    model_choices = [f"ollama/{m}" for m in ollama_models] + _CLOUD_MODELS
+
+    model_id = _q(questionary.autocomplete(
+        "    Model ID",
+        choices=model_choices,
+        match_middle=True,
+        validate=lambda x: bool(x.strip()) or "Required",
+    ))
+
+    role_choices = _ALL_ROLES + ["[ custom... ]"]
+    default_role_q = default_role if default_role in _ALL_ROLES else _ALL_ROLES[0]
+    selected_role = _q(questionary.select(
+        "    Role",
+        choices=role_choices,
+        default=default_role_q,
+    ))
+    if selected_role == "[ custom... ]":
+        selected_role = _q(questionary.text("    Custom role name"))
+
+    inferred = infer_auth(model_id, clis)
+    auth_choices = [
+        "api   — read key from env var (or set api_key in config)",
+        "cli   — use installed claude / gemini session (no key needed)",
+    ]
+    auth_default = auth_choices[1] if inferred == "cli" else auth_choices[0]
+    auth = _q(questionary.select("    Auth", choices=auth_choices, default=auth_default)).split()[0]
+
+    timeout_str = _q(questionary.text("    Timeout (seconds)", default="180"))
+    timeout = int(timeout_str) if timeout_str.strip().isdigit() else 180
+
+    m: dict = {"id": model_id, "role": selected_role, "auth": auth, "timeout": timeout}
     if model_id.startswith("ollama/"):
-        api_base = typer.prompt("    Ollama API base", default="http://localhost:11434")
-        m["extra"] = {"api_base": api_base}
+        m["extra"] = {"api_base": "http://localhost:11434"}
     return m
 
 
@@ -82,7 +172,6 @@ def _models_fitting_budget(memory_bytes: int | None) -> tuple[list[str], int]:
             selected.append(name)
             total += size
     if not selected:
-        # Even the smallest model exceeds budget — use it anyway
         selected = [models_asc[0][0]]
         total = models_asc[0][1]
     return selected, total
@@ -95,7 +184,7 @@ def run_auto_wizard(
     memory_gb: float | None,
     console: Console,
 ) -> None:
-    """Non-interactive wizard: auto-populate a config from local Ollama models."""
+    """Non-interactive: auto-populate a config from local Ollama models."""
     memory_bytes = int(memory_gb * _GB) if memory_gb is not None else None
     all_sizes = detect_ollama_model_sizes()
 
@@ -113,7 +202,6 @@ def run_auto_wizard(
     if memory_gb is not None and total_bytes > memory_bytes:
         console.print(f"  [yellow]⚠  Models exceed {memory_gb:.0f} GB budget — using smallest available.[/yellow]")
 
-    # Chairman: largest single model that fits in budget (most capable for synthesis)
     models_desc = sorted(all_sizes.items(), key=lambda x: x[1], reverse=True)
     chairman_name = next(
         (name for name, size in models_desc if memory_bytes is None or size <= memory_bytes),
@@ -146,17 +234,15 @@ def run_auto_wizard(
     })
 
     toml_content = _render_toml(rounds_data, "decisions")
-
     console.print("\n[bold]── Preview ──[/bold]\n")
     console.print(toml_content)
 
-    # Resolve save path
     if save_name:
         preset_dir = Path(user_config_dir("dissenter"))
         preset_dir.mkdir(parents=True, exist_ok=True)
         output_path = preset_dir / f"{save_name}.toml"
 
-    if typer.confirm(f"Save to {output_path}?", default=True):
+    if _q(questionary.confirm(f"Save to {output_path}?", default=True)):
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(toml_content, encoding="utf-8")
         console.print(f"\n[green]✓[/green] Saved [bold]{output_path}[/bold]")
@@ -191,11 +277,10 @@ def run_wizard(output_path: Path, force: bool, save_name: str | None, console: C
     example = Path("dissenter.example.toml")
     if not save_name and not output_path.exists() and example.exists():
         console.print(
-            f"\n  Found [bold]dissenter.example.toml[/bold] but no [bold]dissenter.toml[/bold].\n"
+            f"  Found [bold]dissenter.example.toml[/bold] but no [bold]dissenter.toml[/bold].\n"
             "  Have you copied and customised it yet?"
         )
-        if typer.confirm("  Copy dissenter.example.toml → dissenter.toml now?", default=True):
-            import shutil
+        if _q(questionary.confirm("  Copy dissenter.example.toml → dissenter.toml now?", default=True)):
             shutil.copy(example, output_path)
             console.print(f"\n[green]✓[/green] Copied to [bold]{output_path}[/bold]")
             console.print("  Edit it to match your models, then run [bold]dissenter ask \"your question\"[/bold].")
@@ -214,35 +299,45 @@ def run_wizard(output_path: Path, force: bool, save_name: str | None, console: C
             "  Use [bold]--force[/bold] to overwrite it, or "
             "[bold]--save <name>[/bold] to create a named preset instead.\n"
         )
-        if not typer.confirm("Overwrite existing file?", default=False):
+        if not _q(questionary.confirm("Overwrite existing file?", default=False)):
             raise typer.Exit(0)
 
-    output_dir = typer.prompt("Output directory", default="decisions")
-    n_debate = int(typer.prompt("Debate rounds (not counting final)", default="1"))
+    n_debate = int(_q(questionary.text("Debate rounds (not counting final)", default="1")))
 
     rounds_data: list[dict] = []
 
     for ri in range(n_debate):
         console.print(f"\n[bold]── Round {ri + 1} ──[/bold]")
-        name = typer.prompt("  Name", default="debate" if ri == 0 else f"round_{ri + 1}")
-        n_models = int(typer.prompt("  Models", default="2"))
+        name = _q(questionary.text("  Name", default="debate" if ri == 0 else f"round_{ri + 1}"))
+        n_models = int(_q(questionary.text("  How many models?", default="2")))
         models = [
-            _collect_model(f"Model {mi + 1}", clis, _DEBATE_ROLES[mi % len(_DEBATE_ROLES)], console)
+            _collect_model(f"Model {mi + 1}", clis, ollama_models, _DEBATE_ROLES[mi % len(_DEBATE_ROLES)], console)
             for mi in range(n_models)
         ]
         rounds_data.append({"name": name, "models": models})
 
     console.print("\n[bold]── Final Round ──[/bold]")
-    final_type = typer.prompt("  Type (chairman/dual)", default="chairman")
-    final_name = typer.prompt("  Name", default="final")
+    final_type_choices = [
+        "chairman  — single model writes the final decision",
+        "dual      — conservative vs liberal + a combiner model",
+    ]
+    final_type = _q(questionary.select("  Type", choices=final_type_choices)).split()[0]
+    final_name = _q(questionary.text("  Name", default="final"))
 
     if final_type == "dual":
-        con = _collect_model("Conservative model", clis, "conservative", console)
+        con = _collect_model("Conservative model", clis, ollama_models, "conservative", console)
         con["role"] = "conservative"
-        lib = _collect_model("Liberal model", clis, "liberal", console)
+        lib = _collect_model("Liberal model", clis, ollama_models, "liberal", console)
         lib["role"] = "liberal"
-        combine = typer.prompt("  Combine model ID")
-        combine_timeout = int(typer.prompt("  Combine timeout (s)", default="60"))
+
+        model_choices = [f"ollama/{m}" for m in ollama_models] + _CLOUD_MODELS
+        combine = _q(questionary.autocomplete(
+            "  Combine model ID",
+            choices=model_choices,
+            match_middle=True,
+            validate=lambda x: bool(x.strip()) or "Required",
+        ))
+        combine_timeout = int(_q(questionary.text("  Combine timeout (seconds)", default="60")))
         rounds_data.append({
             "name": final_name,
             "models": [con, lib],
@@ -250,15 +345,15 @@ def run_wizard(output_path: Path, force: bool, save_name: str | None, console: C
             "combine_timeout": combine_timeout,
         })
     else:
-        chair = _collect_model("Chairman model", clis, "chairman", console)
+        chair = _collect_model("Chairman model", clis, ollama_models, "chairman", console)
         chair["role"] = "chairman"
         rounds_data.append({"name": final_name, "models": [chair]})
 
-    toml_content = _render_toml(rounds_data, output_dir)
+    toml_content = _render_toml(rounds_data, "decisions")
     console.print("\n[bold]── Preview ──[/bold]\n")
     console.print(toml_content)
 
-    if typer.confirm(f"Save to {output_path}?", default=True):
+    if _q(questionary.confirm(f"Save to {output_path}?", default=True)):
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(toml_content, encoding="utf-8")
         console.print(f"\n[green]✓[/green] Saved [bold]{output_path}[/bold]")
