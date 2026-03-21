@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.2.1] — 2026-03-21
+
+### Changed
+- Output structure unified: all files for a run now live under
+  `decisions/<timestamp>/`. The decision is `decision.md` and per-round
+  debug files are subdirectories within the same folder. Previously the
+  decision file and the debug directory were siblings with different names.
+
+---
+
 ## [0.2.0] — 2026-03-21
 
 ### Added

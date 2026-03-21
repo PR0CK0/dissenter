@@ -55,15 +55,14 @@ def ask(
         err.print()
         raise typer.Exit(1)
 
-    # Save outputs
+    # Save outputs — everything lives under decisions/<timestamp>/
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    cfg.output_dir.mkdir(parents=True, exist_ok=True)
-    debug_dir = cfg.output_dir / f"debug_{ts}"
-    debug_dir.mkdir()
+    run_dir = cfg.output_dir / ts
+    run_dir.mkdir(parents=True, exist_ok=True)
 
     # Save per-round debug files
     for rr in all_rounds:
-        round_dir = debug_dir / f"round_{rr.round_index + 1}_{rr.round_name}"
+        round_dir = run_dir / f"round_{rr.round_index + 1}_{rr.round_name}"
         round_dir.mkdir()
         for r in rr.results:
             safe = r.model_id.replace("/", "_").replace(":", "_")
@@ -74,23 +73,23 @@ def ask(
                 (round_dir / f"{fname}.err").write_text(r.error)
 
     # Save synthesis model outputs
-    final_round_dir = debug_dir / f"round_{len(all_rounds)}_{cfg.rounds[-1].name or 'final'}"
+    final_round_dir = run_dir / f"round_{len(all_rounds)}_{cfg.rounds[-1].name or 'final'}"
     final_round_dir.mkdir(exist_ok=True)
     for r in synthesis_results:
         safe = r.model_id.replace("/", "_").replace(":", "_")
         role_safe = r.role.replace(" ", "_").replace("'", "")
         (final_round_dir / f"{safe}__{role_safe}.md").write_text(r.content or "")
 
-    output_file = cfg.output_dir / f"decision_{ts}.md"
+    output_file = run_dir / "decision.md"
     output_file.write_text(final_text)
 
     abs_file = output_file.absolute()
-    abs_debug = debug_dir.absolute()
+    abs_dir = run_dir.absolute()
 
     err.print()
     err.print(Rule("[bold green]Done[/bold green]"))
     err.print(f"  [green]Decision :[/green] [link=file://{abs_file}]{abs_file}[/link]")
-    err.print(f"  [dim]Debug    : [link=file://{abs_debug}]{abs_debug}[/link][/dim]")
+    err.print(f"  [dim]Run dir  : [link=file://{abs_dir}]{abs_dir}[/link][/dim]")
     err.print()
 
 
