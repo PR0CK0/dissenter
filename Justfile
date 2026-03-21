@@ -50,11 +50,11 @@ uninstall:
 
 # Run test suite
 test:
-    uv run pytest tests/ -v
+    uv run --extra dev pytest tests/ -v
 
-# Install dependencies into local .venv
+# Install dependencies into local .venv (includes dev extras)
 install:
-    uv sync
+    uv sync --extra dev
 
 # Install dissenter globally so `dissenter` works anywhere without `uv run`
 global-install:
