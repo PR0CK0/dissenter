@@ -10,7 +10,7 @@ from platformdirs import user_config_dir
 from rich.console import Console
 from rich.panel import Panel
 
-from .detect import detect_clis, detect_ollama_model_sizes, detect_ollama_models, infer_auth
+from .detect import detect_api_keys, detect_clis, detect_ollama_model_sizes, detect_ollama_models, infer_auth
 
 _GB = 1024 ** 3
 
@@ -57,19 +57,46 @@ def exit_message() -> str:
     return random.choice(_EXIT_MESSAGES)
 
 
-_CLOUD_MODELS = [
-    "anthropic/claude-sonnet-4-6",
-    "anthropic/claude-opus-4-6",
-    "anthropic/claude-haiku-4-5-20251001",
-    "gemini/gemini-2.0-flash",
-    "gemini/gemini-2.0-pro",
-    "openai/gpt-4o",
-    "openai/gpt-4o-mini",
-    "groq/llama-3.1-70b-versatile",
-    "groq/mixtral-8x7b-32768",
-    "mistral/mistral-large-latest",
-    "perplexity/sonar-pro",
-]
+_CLOUD_MODELS_BY_PROVIDER: dict[str, list[str]] = {
+    "anthropic": [
+        "anthropic/claude-sonnet-4-6",
+        "anthropic/claude-opus-4-6",
+        "anthropic/claude-haiku-4-5-20251001",
+    ],
+    "gemini": [
+        "gemini/gemini-2.0-flash",
+        "gemini/gemini-2.0-pro",
+    ],
+    "openai": [
+        "openai/gpt-4o",
+        "openai/gpt-4o-mini",
+    ],
+    "groq": [
+        "groq/llama-3.1-70b-versatile",
+        "groq/mixtral-8x7b-32768",
+    ],
+    "mistral": [
+        "mistral/mistral-large-latest",
+    ],
+}
+
+# Map from provider prefix to the detect_api_keys() key and detect_clis() key
+_PROVIDER_CLI: dict[str, str] = {
+    "anthropic": "claude",
+    "gemini": "gemini",
+}
+
+
+def _available_cloud_models(clis: dict[str, str | None], api_keys: dict[str, bool]) -> list[str]:
+    """Return cloud model IDs for providers where a CLI or API key is detected."""
+    available: list[str] = []
+    for provider, models in _CLOUD_MODELS_BY_PROVIDER.items():
+        cli_name = _PROVIDER_CLI.get(provider)
+        has_cli = bool(cli_name and clis.get(cli_name))
+        has_key = api_keys.get(provider, False)
+        if has_cli or has_key:
+            available.extend(models)
+    return available
 
 
 def _q(prompt) -> str:
@@ -90,17 +117,25 @@ def _collect_model(
     ollama_models: list[str],
     default_role: str,
     console: Console,
+    api_keys: dict[str, bool] | None = None,
 ) -> dict:
     console.print(f"\n  [bold]{label}[/bold]")
 
-    model_choices = [f"ollama/{m}" for m in ollama_models] + _CLOUD_MODELS
+    if api_keys is None:
+        api_keys = detect_api_keys()
 
-    model_id = _q(questionary.autocomplete(
+    ollama_choices = [f"ollama/{m}" for m in ollama_models]
+    cloud_choices = _available_cloud_models(clis, api_keys)
+    _CUSTOM = "[ type custom ID... ]"
+    model_choices = ollama_choices + cloud_choices + [_CUSTOM]
+
+    selected_model = _q(questionary.select(
         "    Model ID",
         choices=model_choices,
-        match_middle=True,
-        validate=lambda x: bool(x.strip()) or "Required",
     ))
+    if selected_model == _CUSTOM:
+        selected_model = _q(questionary.text("    Enter model ID (e.g. anthropic/claude-sonnet-4-6)"))
+    model_id = selected_model
 
     role_choices = _ALL_ROLES + ["[ custom... ]"]
     default_role_q = default_role if default_role in _ALL_ROLES else _ALL_ROLES[0]
@@ -258,6 +293,7 @@ def run_wizard(output_path: Path, force: bool, save_name: str | None, console: C
     """Interactive config wizard."""
     clis = detect_clis()
     ollama_models = detect_ollama_models()
+    api_keys = detect_api_keys()
 
     env_lines: list[str] = []
     for cli, path in clis.items():
@@ -278,14 +314,14 @@ def run_wizard(output_path: Path, force: bool, save_name: str | None, console: C
     if not save_name and not output_path.exists() and example.exists():
         console.print(
             f"  Found [bold]dissenter.example.toml[/bold] but no [bold]dissenter.toml[/bold].\n"
-            "  Have you copied and customised it yet?"
+            "  Want to copy it as a starting point, or build a config step-by-step?"
         )
         if _q(questionary.confirm("  Copy dissenter.example.toml → dissenter.toml now?", default=True)):
             shutil.copy(example, output_path)
             console.print(f"\n[green]✓[/green] Copied to [bold]{output_path}[/bold]")
             console.print("  Edit it to match your models, then run [bold]dissenter ask \"your question\"[/bold].")
             raise typer.Exit(0)
-        console.print()
+        console.print("  Starting step-by-step wizard...\n")
 
     # Resolve save destination
     if save_name:
@@ -311,7 +347,7 @@ def run_wizard(output_path: Path, force: bool, save_name: str | None, console: C
         name = _q(questionary.text("  Name", default="debate" if ri == 0 else f"round_{ri + 1}"))
         n_models = int(_q(questionary.text("  How many models?", default="2")))
         models = [
-            _collect_model(f"Model {mi + 1}", clis, ollama_models, _DEBATE_ROLES[mi % len(_DEBATE_ROLES)], console)
+            _collect_model(f"Model {mi + 1}", clis, ollama_models, _DEBATE_ROLES[mi % len(_DEBATE_ROLES)], console, api_keys)
             for mi in range(n_models)
         ]
         rounds_data.append({"name": name, "models": models})
@@ -325,18 +361,17 @@ def run_wizard(output_path: Path, force: bool, save_name: str | None, console: C
     final_name = _q(questionary.text("  Name", default="final"))
 
     if final_type == "dual":
-        con = _collect_model("Conservative model", clis, ollama_models, "conservative", console)
+        con = _collect_model("Conservative model", clis, ollama_models, "conservative", console, api_keys)
         con["role"] = "conservative"
-        lib = _collect_model("Liberal model", clis, ollama_models, "liberal", console)
+        lib = _collect_model("Liberal model", clis, ollama_models, "liberal", console, api_keys)
         lib["role"] = "liberal"
 
-        model_choices = [f"ollama/{m}" for m in ollama_models] + _CLOUD_MODELS
-        combine = _q(questionary.autocomplete(
-            "  Combine model ID",
-            choices=model_choices,
-            match_middle=True,
-            validate=lambda x: bool(x.strip()) or "Required",
-        ))
+        _CUSTOM = "[ type custom ID... ]"
+        cloud_choices = _available_cloud_models(clis, api_keys)
+        combine_choices = [f"ollama/{m}" for m in ollama_models] + cloud_choices + [_CUSTOM]
+        combine = _q(questionary.select("  Combine model ID", choices=combine_choices))
+        if combine == _CUSTOM:
+            combine = _q(questionary.text("  Enter combine model ID"))
         combine_timeout = int(_q(questionary.text("  Combine timeout (seconds)", default="60")))
         rounds_data.append({
             "name": final_name,
@@ -345,7 +380,7 @@ def run_wizard(output_path: Path, force: bool, save_name: str | None, console: C
             "combine_timeout": combine_timeout,
         })
     else:
-        chair = _collect_model("Chairman model", clis, ollama_models, "chairman", console)
+        chair = _collect_model("Chairman model", clis, ollama_models, "chairman", console, api_keys)
         chair["role"] = "chairman"
         rounds_data.append({"name": final_name, "models": [chair]})
 

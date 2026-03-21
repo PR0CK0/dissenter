@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.0] — 2026-03-21
+
+### Changed
+- **Wizard model chooser** — switched from autocomplete to arrow-key `select`, matching the role picker UX. Model list is now credential-aware: only shows Ollama models detected locally and cloud models for providers where a CLI (`claude`, `gemini`) or API key env var is present. A `[ type custom ID... ]` escape hatch covers anything else.
+- **Wizard "copy example" prompt** — clarified that declining the copy offer starts the step-by-step wizard (`Starting step-by-step wizard...` message shown before proceeding).
+- **README** — shortened by ~25%, all semantics retained. Added per-command flag tables for `ask`, `init`, `show`, and `history`. Updated roadmap to reflect all shipped features.
+
+---
+
 ## [1.2.0] — 2026-03-21
 
 ### Added

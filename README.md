@@ -11,7 +11,7 @@
 **Run multiple LLMs through a structured debate for complex questions. Surface where they disagree. Synthesize a decision.**
 
 ```bash
-make ask Q="Should I use Kafka or a Postgres outbox pattern for event-driven microservices?"
+dissenter ask "Should I use Kafka or a Postgres outbox pattern for event-driven microservices?"
 ```
 
 ---
@@ -20,17 +20,16 @@ make ask Q="Should I use Kafka or a Postgres outbox pattern for event-driven mic
 
 - [Why this exists](#why-this-exists)
 - [What the existing tools get wrong](#what-the-existing-tools-get-wrong)
-- [What dissenter does differently](#what-dissent-does-differently)
+- [What dissenter does differently](#what-dissenter-does-differently)
 - [Architecture](#architecture)
 - [Installation](#installation)
-- [Running](#running)
+- [Commands](#commands)
 - [Configuration](#configuration)
   - [Minimal config](#minimal-config)
   - [Multi-round](#multi-round)
   - [Dual-arbiter final](#dual-arbiter-final)
   - [CLI auth — no API keys](#cli-auth--no-api-keys)
   - [Same model, multiple roles](#same-model-multiple-roles)
-  - [Random role distribution](#random-role-distribution)
   - [Per-model API key](#per-model-api-key)
 - [Roles](#roles)
 - [Output](#output)
@@ -45,7 +44,7 @@ make ask Q="Should I use Kafka or a Postgres outbox pattern for event-driven mic
 
 There are already tools that aggregate multiple LLMs for consensus answers. This is not that.
 
-Every existing tool — [llm-council](https://github.com/karpathy/llm-council), [llm-consortium](https://github.com/irthomasthomas/llm-consortium), [consilium](https://github.com/terry-li-hm/consilium), the research implementations of [Mixture of Agents](https://github.com/togethercomputer/MoA) — is trying to build a better oracle. They treat disagreement as noise to eliminate and convergence as success.
+Every existing tool — [llm-council](https://github.com/karpathy/llm-council), [llm-consortium](https://github.com/irthomasthomas/llm-consortium), [consilium](https://github.com/terry-li-hm/consilium), the reference implementations of [Mixture of Agents](https://github.com/togethercomputer/MoA) — is trying to build a better oracle. They treat disagreement as noise to eliminate and convergence as success.
 
 For architectural decisions, that's exactly backwards.
 
@@ -61,16 +60,16 @@ For architectural decisions, that's exactly backwards.
 Sending the same neutral question to five models gets you five statistically similar answers with slight variation. You're not extracting diverse perspectives — you're sampling noise from similar training distributions. The February 2025 LLM ensemble survey (arXiv 2502.18036) found this is the primary reason naive ensembles underperform.
 
 ### They chase consensus
-The goal of arbiter/judge patterns in llm-council, consilium, and llm-consortium is to produce a single authoritative answer. But for architectural decisions — which involve trade-offs specific to *your* team, stack, and constraints — false consensus is worse than acknowledged uncertainty. The models don't know your system. The arbiter doesn't know your team.
+The goal of arbiter/judge patterns in llm-council, consilium, and llm-consortium is to produce a single authoritative answer. For architectural decisions — which involve trade-offs specific to *your* team, stack, and constraints — false consensus is worse than acknowledged uncertainty. The models don't know your system. The arbiter doesn't know your team.
 
 ### They're stateless
 No tool persists your decisions. You can't ask "given we chose Kafka three months ago, how does that change this?" Every query is context-free. Architectural decisions form a causal chain; these tools treat each one as an isolated question.
 
 ### They depend on OpenRouter or require specific infrastructure
-llm-consortium is a plugin for Simon Willison's `llm` tool. consilium requires a Rust binary. MoA reference implementations need TogetherAI. None mix cloud + local models cleanly without a proxy service.
+llm-consortium is a plugin for Simon Willison's `llm` tool. consilium requires a Rust binary. MoA reference implementations need TogetherAI. None mix cloud and local models cleanly without a proxy service.
 
 ### They require API keys for every model
-Every tool assumes you're accessing models via API key. If you have a `claude` CLI or `gemini` CLI installed and authenticated, that credential is invisible to them — you still need a separate API key. This means you're paying twice for access you already have, and there's no path to using browser-authenticated sessions.
+Every tool assumes you're accessing models via API key. If you have a `claude` CLI or `gemini` CLI installed and authenticated, that credential is invisible to them — you still need a separate API key.
 
 ---
 
@@ -104,7 +103,7 @@ The synthesized ADR has a dedicated **Disagreements** section — a structured a
 
 ### 6. Two auth modes: API key or CLI session
 
-Every model can use either an API key **or** the authentication from an installed CLI tool — per model, mixed freely in the same config. If you have `claude` and `gemini` CLIs installed and logged in, dissenter works with zero API key configuration. See [CLI auth](#cli-auth--no-api-keys).
+Every model can use either an API key **or** the authentication from an installed CLI tool — per model, mixed freely in the same config. If you have `claude` and `gemini` CLIs installed and logged in, dissenter works with zero API key configuration.
 
 ### 7. No OpenRouter dependency, genuine provider heterogeneity
 
@@ -146,7 +145,7 @@ flowchart TD
         LIB --> COMBINE
     end
 
-    FINAL --> OUT[decisions/decision_*.md]
+    FINAL --> OUT[decisions/<timestamp>/decision.md]
 ```
 
 ---
@@ -173,11 +172,11 @@ copy dissenter.example.toml dissenter.toml # Windows
 # Edit dissenter.toml to match your models and API keys
 ```
 
-`uv tool install` automatically adds `dissenter` to your PATH on all platforms — no manual env var setup needed.
+`uv tool install` automatically adds `dissenter` to your PATH on all platforms.
 
 `dissenter.toml` is gitignored since it may contain API keys. `dissenter.example.toml` is the committed template — copy and customise it. For shared team configs, use named presets (`dissenter init --save <name>`).
 
-**Choose your auth method — or mix them freely:**
+**Choose your auth method — mix freely per model:**
 
 **Option A — CLI auth (no API keys needed)**
 If you have `claude` and/or `gemini` CLIs installed and logged in, set `auth = "cli"` in your config. Done.
@@ -191,71 +190,134 @@ export PERPLEXITY_API_KEY=...      # optional, web-search grounding
 ```
 
 **Option C — fully local, no credentials**
-Use `make ask-test` — runs entirely on Ollama with `ministral-3:3b`. See [Testing](#testing).
-
-For Ollama models, start `ollama serve` before running.
+```bash
+ollama pull ministral-3:3b
+ollama serve
+dissenter ask "..." --config dissenter-test.toml
+```
 
 ---
 
-## Running
+## Commands
 
-`make install` puts the package into a local `.venv`. The `dissenter` command is **not** on your PATH by default. Three options:
+### `dissenter ask`
 
-```bash
-# Option 1 — make (recommended, always works from the project directory)
-make ask Q="your question"
-make show
+Run a debate and save the decision.
 
-# Option 2 — uv run (always works from the project directory)
-uv run dissenter ask "your question"
-uv run dissenter show
-
-# Option 3 — install globally so bare `dissenter` works anywhere
-uv tool install .
-dissenter ask "your question"
-```
-
-**Commands:**
+| Flag | Description |
+|------|-------------|
+| _(no flags)_ | Load `dissenter.toml` from the current directory |
+| `--config <path\|name>` | Path to a TOML file, or a named preset (`~/.config/dissenter/<name>.toml`) |
+| `--quick` | Auto-detect all installed Ollama models and run immediately |
+| `--model <id[@role]>` | Add a model inline — repeatable, bypasses config file |
+| `--chairman <id>` | Set the final-round chairman when using `--model` |
+| `--output <dir>` | Override the output directory (default: `decisions/`) |
 
 ```bash
-dissenter ask "Should I use Kafka or Postgres outbox?"   # run a debate
-dissenter ask "..." --config fast                        # use a named preset
-dissenter ask "..." --config decisions/20260321/config.toml  # re-run exact config
-dissenter ask "..." --quick                              # auto-detect Ollama models
-dissenter ask "..." --output ./architecture/decisions    # custom output dir
-
-dissenter init                       # interactive wizard → dissenter.toml
-dissenter init --save fast           # wizard → ~/.config/dissenter/fast.toml
-dissenter init --auto                # auto-generate from all local Ollama models
-dissenter init --auto --memory 8     # fit within 8 GB RAM per round
-dissenter init --auto --rounds 2 --memory 16 --save deep
-
-dissenter models                     # show detected models, CLIs, and API keys
-dissenter show                       # show current config (rounds, models, roles)
-dissenter history                    # browse past decisions
-dissenter history --search "Kafka"   # filter by keyword
-
-dissenter clear                      # delete all run history
-dissenter uninstall                  # remove all app data from this machine
+dissenter ask "Should I use Kafka or Postgres outbox?"
+dissenter ask "..." --config fast                             # named preset
+dissenter ask "..." --config decisions/20260321_143022/config.toml  # exact re-run
+dissenter ask "..." --quick                                   # auto-detect Ollama
+dissenter ask "..." --model ollama/mistral@skeptic --model ollama/phi3@pragmatist --chairman ollama/mistral
 ```
 
-Or with `just` (cross-platform shortcuts):
+Every run saves a `config.toml` snapshot in the run directory for exact re-runs.
+
+---
+
+### `dissenter init`
+
+Interactive config wizard. Uses arrow-key selection and model autocomplete. Only shows models with detected credentials (installed Ollama models + cloud providers where a CLI or API key is found).
+
+| Flag | Description |
+|------|-------------|
+| _(no flags)_ | Full interactive wizard → `dissenter.toml` in current dir |
+| `--force` | Overwrite existing `dissenter.toml` without prompting |
+| `--save <name>` | Save as a named preset → `~/.config/dissenter/<name>.toml` |
+| `--auto` | Non-interactive: auto-generate from all local Ollama models |
+| `--memory <GB>` | With `--auto`: fit models within this RAM budget per round |
+| `--rounds <N>` | With `--auto`: number of debate rounds before the final (default: 1) |
+
+```bash
+dissenter init                                    # interactive
+dissenter init --save fast                        # save as named preset
+dissenter init --auto --memory 8 --rounds 2 --save deep
+dissenter ask "..." --config deep                 # use named preset
+```
+
+---
+
+### `dissenter models`
+
+Show detected Ollama models, CLI tool paths, and API key status. No flags.
+
+---
+
+### `dissenter show`
+
+Show the current config as a tree (rounds, models, roles, auth).
+
+| Flag | Description |
+|------|-------------|
+| `--config <path\|name>` | Config to display (default: `dissenter.toml`) |
+
+---
+
+### `dissenter history`
+
+Browse and search past decisions stored in the local SQLite database.
+
+| Flag | Description |
+|------|-------------|
+| _(no flags)_ | Numbered table of all past runs — open any by number |
+| `--search <term>` | Filter by keyword in question or decision text |
+
+Database location:
+- Mac: `~/Library/Application Support/dissenter/dissenter.db`
+- Linux: `~/.local/share/dissenter/dissenter.db`
+- Windows: `%LOCALAPPDATA%\dissenter\dissenter.db`
+
+---
+
+### `dissenter clear`
+
+Delete all run history from the database. Prompts for confirmation. Does not remove config presets.
+
+---
+
+### `dissenter uninstall`
+
+Remove all app data from this machine (database + config presets). Prints the command to fully remove the package afterwards.
+
+---
+
+### `just` shortcuts
+
+[just](https://just.systems) aliases for all commands — cross-platform (Mac/Linux/Windows):
 
 ```bash
 just ask "Should I use Kafka?"
+just ask-local "..."          # Ollama only, no API keys (dissenter-test.toml)
+just quick "..."              # --quick flag
+just init
+just init-save fast
 just init-auto memory=8 rounds=2
+just models
+just show
 just history
 just search "Kafka"
-just global-install   # put `dissenter` on PATH system-wide
+just clear
+just uninstall
+just test
+just install
+just global-install           # put `dissenter` on PATH system-wide
 ```
-
-Every run saves a `config.toml` snapshot alongside the decision, so any past run is exactly reproducible.
 
 ---
 
 ## Configuration
 
-Edit `dissenter.toml` in the project directory, or `~/.config/dissenter/config.toml` for a global default. Pass `--config <path>` to override.
+Edit `dissenter.toml` in the project directory. Pass `--config <path>` to override. Bare names resolve to `~/.config/dissenter/<name>.toml`.
 
 ### Minimal config
 
@@ -351,7 +413,7 @@ timeout = 300
 
 ### CLI auth — no API keys
 
-The default for every model is `auth = "api"` — litellm reads the API key from your environment. Set `auth = "cli"` to override on a per-model basis and use the provider's installed CLI instead. The prompt is piped to the CLI via stdin; the response is captured from stdout. Uses whatever session the CLI has — OAuth, browser login, enterprise SSO.
+The default for every model is `auth = "api"` — litellm reads the API key from your environment. Set `auth = "cli"` to use the provider's installed CLI instead. The prompt is piped to the CLI via stdin; the response is captured from stdout. Uses whatever session the CLI has — OAuth, browser login, enterprise SSO.
 
 ```toml
 [[rounds.models]]
@@ -415,18 +477,6 @@ timeout = 180
 extra   = { api_base = "http://localhost:11434" }
 ```
 
-### Random role distribution
-
-Use `[role_distribution]` to randomly assign roles from a weighted distribution. Weights are relative.
-
-```toml
-[role_distribution]
-"devil's advocate" = 0.3
-"skeptic"          = 0.3
-"pragmatist"       = 0.2
-"contrarian"       = 0.2
-```
-
 ### Per-model API key
 
 Override the environment variable with an explicit key per model.
@@ -443,8 +493,6 @@ api_key = "sk-ant-..."
 ## Roles
 
 Roles live in `src/dissent/roles/*.toml`. Each file defines a `name`, `description`, and `prompt`. Add a new `.toml` file to create a new role — no code changes needed.
-
-### Built-in roles
 
 | Role | Description | Typical round |
 |------|-------------|---------------|
@@ -474,20 +522,22 @@ prompt      = "Your role is security auditor. Identify the attack surface, likel
 
 ## Output
 
-Each run produces a decision file and a debug directory:
+Each run produces a timestamped directory:
 
 ```
 decisions/
-  decision_20260320_143022.md          ← the ADR (commit this)
-  debug_20260320_143022/
-    round_1_debate/
-      anthropic_claude-sonnet-4-6__devils_advocate.md
-      gemini_gemini-2.0-flash__pragmatist.md
-      ollama_mistral__skeptic.md
-    round_2_refine/
-      gemini_gemini-2.0-flash__analyst.md
-    round_3_final/
-      anthropic_claude-opus-4-6__chairman.md
+  20260320_143022/
+    decision.md              ← the ADR (commit this)
+    config.toml              ← exact config snapshot for re-runs
+    debug/
+      round_1_debate/
+        anthropic_claude-sonnet-4-6__devils_advocate.md
+        gemini_gemini-2.0-flash__pragmatist.md
+        ollama_mistral__skeptic.md
+      round_2_refine/
+        gemini_gemini-2.0-flash__analyst.md
+      round_3_final/
+        anthropic_claude-opus-4-6__chairman.md
 ```
 
 The decision file path is printed as a clickable link at the end of each run. The ADR follows a structured format: Context, Consensus, Disagreements, Options table, Decision, Consequences, Mitigations, Open Questions.
@@ -497,7 +547,7 @@ The decision file path is printed as a clickable link at the end of each run. Th
 ## Testing
 
 ```bash
-make test       # runs the pytest suite
+just test       # runs the pytest suite
 ```
 
 **Testing without API keys — fully local:**
@@ -505,7 +555,7 @@ make test       # runs the pytest suite
 ```bash
 ollama pull ministral-3:3b
 ollama serve
-make ask-test Q="Should I use Redis or Postgres for session storage?"
+dissenter ask "Should I use Redis or Postgres for session storage?" --config dissenter-test.toml
 ```
 
 `dissenter-test.toml` runs `ministral-3:3b` with different roles across all rounds. It exercises the full multi-round pipeline with zero external API access.
@@ -527,12 +577,12 @@ make ask-test Q="Should I use Redis or Postgres for session storage?"
 | CLI session auth (no API key) | ✓ | ✗ | ✗ | ✗ | ✗ |
 | No OpenRouter/proxy required | ✓ | ✗ | ✗ | ✓ | ✗ |
 | Local + cloud in same ensemble | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Persistent decision history | ✓ | ✗ | ✗ | ✗ | ✗ |
 | ADR output format | ✓ | ✗ | ✗ | ✗ | ✗ |
 | Single-file config | ✓ | ✗ | partial | ✗ | ✗ |
 | Per-model API key override | ✓ | ✗ | ✗ | ✗ | ✗ |
+| `uv tool install` | ✓ | ✗ | partial | ✗ | ✗ |
 | Peer critique round | roadmap | partial⁵ | ✗ | ✓⁶ | ✗ |
-| Decision memory | roadmap | ✗ | ✗ | ✗ | ✗ |
-| `uv tool install` | roadmap | ✗ | partial | ✗ | ✗ |
 
 *¹ llm-consortium retries up to 3× when arbiter confidence < 0.8 — iteration toward convergence, not debate.*
 *² consilium has configurable `--rounds N` in `discuss`/`socratic` modes.*
@@ -554,20 +604,23 @@ make ask-test Q="Should I use Redis or Postgres for session storage?"
 
 ## Roadmap
 
-**Done in v0.2:**
+**Done:**
 - [x] Multi-round debate with context passing between rounds
 - [x] Role prompts as external TOML files (`src/dissent/roles/*.toml`)
 - [x] Dual-arbiter final round (conservative + liberal + combine_model)
-- [x] Random role distribution (`[role_distribution]` table)
-- [x] Per-model `api_key` override in `[[rounds.models]]`
 - [x] CLI session auth (`auth = "cli"`) — use installed CLIs without API keys
 - [x] Same model, different roles in a single round
-- [x] `dissenter show` — rich tree view of configured rounds
+- [x] SQLite decision history — `dissenter history` / `dissenter clear`
+- [x] Named config presets (`--save <name>`, `--config <name>`)
+- [x] `dissenter init --auto` — non-interactive Ollama config generation with RAM budgeting
+- [x] Questionary wizard — arrow-key role selection, credential-aware model list
+- [x] Ollama RAM estimation and warnings before running
+- [x] Config snapshot per run for exact reproducibility
+- [x] `uv tool install` / `just global-install` — global PATH install
+- [x] `dissenter uninstall` — full app data removal
 
-**Still to do:**
+**Planned:**
 - [ ] `--deep` flag: peer critique round (ICE paper, +7–45% accuracy on hard benchmarks)
 - [ ] Disagreement classifier: factual vs. trade-off vs. context-dependent
-- [ ] Persistent decision store: SQLite + embedding, surface past ADRs as context
 - [ ] Confidence scoring: each model rates certainty and states what would change its answer
 - [ ] Dynamic role inference: infer relevant roles from question type (security, performance, cost, maintainability)
-- [ ] `uv tool install` distribution for global install without cloning
