@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dissent"
-version = "0.2.0"
+version = "1.0.0"
 description = "Multi-LLM debate engine for architectural decisions"
 requires-python = ">=3.11"
 dependencies = [

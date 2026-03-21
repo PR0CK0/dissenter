@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented here.
 
+## [1.0.0] — 2026-03-21
+
+### Added
+- **`dissent init`**: Interactive config wizard. Detects installed Ollama models and
+  claude/gemini CLI tools, prompts for rounds/models/roles/auth, previews generated
+  TOML, and saves to `dissent.toml`. Supports both chairman and dual-arbiter finals.
+- **`dissent models`**: Shows detected Ollama models, CLI tool paths, and API provider
+  key status (which env vars are set) in one command.
+- **`dissent ask --model` / `--chairman` / `--quick`**: Run debates without a config file.
+  `--model model_id[@role]` (repeatable) builds a debate round inline.
+  `--quick` auto-detects all installed Ollama models and runs immediately.
+- **PyPI publishing**: GitHub Actions workflow triggers on version tags and publishes
+  via `uv publish` with OIDC trusted publishing (no token management needed).
+- **`detect.py`**: Shared environment detection utilities (`detect_ollama_models`,
+  `detect_clis`, `detect_api_keys`, `infer_auth`).
+
+### Changed
+- `dissent show` now displays auth mode alongside each model.
+- Config priority for `ask`: `--quick` > `--model/--chairman` > config file.
+
+---
+
 ## [0.2.1] — 2026-03-21
 
 ### Changed
