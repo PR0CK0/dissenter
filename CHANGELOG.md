@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [1.0.3] — 2026-03-21
+
+### Added
+- `README.md` badges: PyPI version, Python versions, license, publish workflow status, LiteLLM.
+- `LICENSE` (MIT, Dr. Tyler T. Procko).
+- Full `pyproject.toml` metadata: `readme`, `license`, `authors`, `keywords`, `classifiers`, `[project.urls]` — populates the PyPI project page.
+
+### Changed
+- Project description updated to reflect use for complex questions generally, not just architectural decisions.
+
+---
+
 ## [1.0.2] — 2026-03-21
 
 ### Added

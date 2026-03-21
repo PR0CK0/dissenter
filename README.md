@@ -1,6 +1,12 @@
 # dissenter
 
-**Run multiple LLMs through a structured debate. Surface where they disagree. Synthesize a decision.**
+[![PyPI version](https://img.shields.io/pypi/v/dissenter)](https://pypi.org/project/dissenter/)
+[![Python](https://img.shields.io/pypi/pyversions/dissenter)](https://pypi.org/project/dissenter/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Build](https://img.shields.io/github/actions/workflow/status/PR0CK0/dissenter/publish.yml?label=publish)](https://github.com/PR0CK0/dissenter/actions/workflows/publish.yml)
+[![LiteLLM](https://img.shields.io/badge/powered%20by-LiteLLM-blueviolet)](https://docs.litellm.ai/)
+
+**Run multiple LLMs through a structured debate for complex questions. Surface where they disagree. Synthesize a decision.**
 
 ```bash
 make ask Q="Should I use Kafka or a Postgres outbox pattern for event-driven microservices?"
