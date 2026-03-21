@@ -1,0 +1,42 @@
+# dissent — minimal test config
+# Uses only ministral-3:3b via Ollama — fast, no API keys needed.
+# Same model with different roles is intentional and fully supported.
+#
+# Prerequisites:
+#   ollama serve
+#
+# Usage:
+#   dissent ask "Your question here" --config dissent-test.toml
+#   make ask-test Q="Your question here"
+
+output_dir = "decisions/test"
+
+[[rounds]]
+name = "debate"
+
+[[rounds.models]]
+id      = "ollama/ministral-3:3b"
+role    = "devil's advocate"
+timeout = 120
+extra   = { api_base = "http://localhost:11434" }
+
+[[rounds.models]]
+id      = "ollama/ministral-3:3b"
+role    = "skeptic"
+timeout = 120
+extra   = { api_base = "http://localhost:11434" }
+
+[[rounds.models]]
+id      = "ollama/ministral-3:3b"
+role    = "pragmatist"
+timeout = 120
+extra   = { api_base = "http://localhost:11434" }
+
+[[rounds]]
+name = "final"
+
+[[rounds.models]]
+id      = "ollama/ministral-3:3b"
+role    = "chairman"
+timeout = 180
+extra   = { api_base = "http://localhost:11434" }

@@ -1,0 +1,68 @@
+# dissent — multi-LLM debate engine
+# Model IDs use litellm format: "provider/model-name"
+# API keys are read from environment variables automatically.
+# See: https://docs.litellm.ai/docs/providers
+#
+# To use CLI auth (e.g. a locally-authenticated model), set:
+#   api_key = "your-key-here"
+# in any [[rounds.models]] block. Otherwise litellm reads from env.
+
+output_dir = "decisions"
+
+# ── Round 1: Initial debate ──────────────────────────────────────────────────
+[[rounds]]
+name = "debate"
+
+[[rounds.models]]
+id      = "anthropic/claude-sonnet-4-6"
+role    = "devil's advocate"
+auth    = "cli"
+timeout = 180
+
+[[rounds.models]]
+id      = "gemini/gemini-2.0-flash"
+role    = "pragmatist"
+auth    = "cli"
+timeout = 150
+
+# Needs: ollama serve running locally
+[[rounds.models]]
+id      = "ollama/mistral"
+role    = "skeptic"
+timeout = 180
+extra   = { api_base = "http://localhost:11434" }
+
+[[rounds.models]]
+id      = "ollama/qwen2.5:1.5b"
+role    = "contrarian"
+timeout = 180
+extra   = { api_base = "http://localhost:11434" }
+
+# ── Final round: single chairman ─────────────────────────────────────────────
+[[rounds]]
+name = "final"
+
+[[rounds.models]]
+id      = "anthropic/claude-opus-4-6"
+role    = "chairman"
+auth    = "cli"
+timeout = 300
+
+# ── Example: dual-arbiter final (conservative vs liberal) ────────────────────
+# Uncomment to replace the single chairman above with a dual-recommendation output.
+# The combine_model merges both views into a single side-by-side MD file.
+#
+# [[rounds]]
+# name          = "final"
+# combine_model = "ollama/mistral"
+# combine_timeout = 60
+#
+# [[rounds.models]]
+# id      = "anthropic/claude-opus-4-6"
+# role    = "conservative"
+# timeout = 300
+#
+# [[rounds.models]]
+# id      = "gemini/gemini-2.0-flash"
+# role    = "liberal"
+# timeout = 300
