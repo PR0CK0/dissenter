@@ -1,0 +1,87 @@
+# dissenter.example.toml
+# ──────────────────────────────────────────────────────────────────────────────
+# Copy this file to dissenter.toml and customise it for your setup:
+#
+#   cp dissenter.example.toml dissenter.toml        (Mac/Linux)
+#   copy dissenter.example.toml dissenter.toml      (Windows)
+#
+# dissenter.toml is gitignored — if you add api_key entries, they won't be
+# committed. Shared team configs belong in named presets instead:
+#   dissenter init --save <name>  →  saves to ~/.config/dissenter/<name>.toml
+#   dissenter ask "q" --config <name>
+#
+# Model IDs use litellm format: "provider/model-name"
+# See: https://docs.litellm.ai/docs/providers
+#
+# Auth options (set per model):
+#   auth = "api"   (default) — litellm reads key from env var, or set api_key
+#   auth = "cli"             — uses installed claude/gemini CLI session (no key needed)
+#
+# Roles: devil's advocate, pragmatist, skeptic, contrarian, analyst,
+#        researcher, second opinion, chairman, conservative, liberal
+# Add your own: src/dissent/roles/<name>.toml
+
+output_dir = "decisions"
+
+# ── Round 1: debate ───────────────────────────────────────────────────────────
+# Models run in parallel within a round. Each gets a different adversarial role.
+# Subsequent rounds receive all prior round outputs as context.
+[[rounds]]
+name = "debate"
+
+[[rounds.models]]
+id      = "anthropic/claude-sonnet-4-6"
+role    = "devil's advocate"
+auth    = "cli"                 # uses installed `claude` CLI — no API key needed
+timeout = 180
+
+[[rounds.models]]
+id      = "gemini/gemini-2.0-flash"
+role    = "pragmatist"
+auth    = "cli"                 # uses installed `gemini` CLI — no API key needed
+timeout = 150
+
+# Local Ollama model — needs `ollama serve` running
+[[rounds.models]]
+id      = "ollama/mistral"
+role    = "skeptic"
+timeout = 180
+extra   = { api_base = "http://localhost:11434" }
+
+[[rounds.models]]
+id      = "ollama/qwen2.5:1.5b"
+role    = "contrarian"
+timeout = 180
+extra   = { api_base = "http://localhost:11434" }
+
+# ── Final round: chairman ─────────────────────────────────────────────────────
+# Must have exactly 1 model (chairman) or 2 models + combine_model (dual-arbiter).
+[[rounds]]
+name = "final"
+
+[[rounds.models]]
+id      = "anthropic/claude-opus-4-6"
+role    = "chairman"
+auth    = "cli"
+timeout = 300
+
+# ── Alternative: dual-arbiter final ──────────────────────────────────────────
+# Replace the chairman block above with this to get a conservative vs liberal
+# side-by-side recommendation. combine_model merges both into one document.
+#
+# [[rounds]]
+# name            = "final"
+# combine_model   = "ollama/mistral"
+# combine_timeout = 60
+#
+# [[rounds.models]]
+# id      = "anthropic/claude-opus-4-6"
+# role    = "conservative"
+# auth    = "cli"
+# timeout = 300
+#
+# [[rounds.models]]
+# id      = "gemini/gemini-2.0-flash"
+# role    = "liberal"
+# auth    = "cli"
+# timeout = 300

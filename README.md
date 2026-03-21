@@ -166,9 +166,16 @@ git clone https://github.com/PR0CK0/dissenter
 cd dissenter
 just global-install          # installs globally via uv tool
 # or: just install           # local .venv only (use `uv run dissenter ...`)
+
+# Set up your config
+cp dissenter.example.toml dissenter.toml   # Mac/Linux
+copy dissenter.example.toml dissenter.toml # Windows
+# Edit dissenter.toml to match your models and API keys
 ```
 
 `uv tool install` automatically adds `dissenter` to your PATH on all platforms — no manual env var setup needed.
+
+`dissenter.toml` is gitignored since it may contain API keys. `dissenter.example.toml` is the committed template — copy and customise it. For shared team configs, use named presets (`dissenter init --save <name>`).
 
 **Choose your auth method — or mix them freely:**
 

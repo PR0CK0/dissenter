@@ -1,4 +1,5 @@
 decisions/
+dissenter.toml
 .venv/
 __pycache__/
 *.pyc

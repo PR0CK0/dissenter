@@ -187,6 +187,21 @@ def run_wizard(output_path: Path, force: bool, save_name: str | None, console: C
     console.print(Panel("\n".join(env_lines), title="[bold]dissenter init[/bold]", expand=False))
     console.print()
 
+    # If only the example exists, offer a quick copy instead of full wizard
+    example = Path("dissenter.example.toml")
+    if not save_name and not output_path.exists() and example.exists():
+        console.print(
+            f"\n  Found [bold]dissenter.example.toml[/bold] but no [bold]dissenter.toml[/bold].\n"
+            "  Have you copied and customised it yet?"
+        )
+        if typer.confirm("  Copy dissenter.example.toml → dissenter.toml now?", default=True):
+            import shutil
+            shutil.copy(example, output_path)
+            console.print(f"\n[green]✓[/green] Copied to [bold]{output_path}[/bold]")
+            console.print("  Edit it to match your models, then run [bold]dissenter ask \"your question\"[/bold].")
+            raise typer.Exit(0)
+        console.print()
+
     # Resolve save destination
     if save_name:
         preset_dir = Path(user_config_dir("dissenter"))

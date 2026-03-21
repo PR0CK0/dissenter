@@ -79,9 +79,7 @@ def load_config(path: Path | None = None) -> DissentConfig:
             data = tomllib.loads(candidate.read_text(encoding="utf-8"))
             return DissentConfig.model_validate(data)
 
-    raise FileNotFoundError(
-        "No dissenter.toml found. Create one with `dissenter init` or pass --config <path>."
-    )
+    raise FileNotFoundError("no config found")
 
 
 def config_to_toml(cfg: DissentConfig) -> str:
