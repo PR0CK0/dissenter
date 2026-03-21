@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [1.0.2] — 2026-03-21
+
+### Added
+- `make publish` target for manual PyPI deploys (`PYPI_TOKEN=pypi-xxxx make publish`).
+- GitHub Actions `workflow_dispatch` trigger — publish manually from the GitHub Actions UI without a tag push.
+
+---
+
 ## [1.0.1] — 2026-03-21
 
 ### Changed
