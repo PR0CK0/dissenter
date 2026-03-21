@@ -1,0 +1,11 @@
+decisions/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+dist/
+*.egg-info/
+.DS_Store
+.pytest_cache/
+.claude/
