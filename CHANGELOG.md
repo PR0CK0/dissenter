@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [1.0.4] — 2026-03-21
+
+### Added
+- README badges: uv, LLMs (Ollama | Claude | Gemini | Codex).
+
+### Fixed
+- Python version badge restored to dynamic PyPI source after confirming package is indexed.
+
+---
+
 ## [1.0.3] — 2026-03-21
 
 ### Added
