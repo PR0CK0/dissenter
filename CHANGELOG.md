@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [1.0.5] — 2026-03-21
+## [1.1.0] — 2026-03-21
 
 ### Added
 - **SQLite persistence** (`db.py`) — all runs stored in platform-native data dir (`platformdirs.user_data_dir`). Cross-platform: Mac `~/Library/Application Support/dissenter/`, Linux `~/.local/share/dissenter/`, Windows `%LOCALAPPDATA%\dissenter\`.
