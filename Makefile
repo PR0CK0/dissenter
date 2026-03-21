@@ -1,4 +1,4 @@
-.PHONY: ask ask-test show install test
+.PHONY: ask ask-test show install test publish
 
 UV := $(shell command -v uv 2>/dev/null || echo $(HOME)/.local/bin/uv)
 
@@ -16,3 +16,7 @@ install:
 
 test:
 	@$(UV) run pytest tests/ -v
+
+publish:
+	@$(UV) build
+	@UV_PUBLISH_TOKEN=$(PYPI_TOKEN) $(UV) publish
