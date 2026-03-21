@@ -11,7 +11,14 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.tree import Tree
 
+from importlib.metadata import version as _pkg_version
+
 from .config import DissentConfig, ModelConfig, RoundConfig, config_to_toml, load_config
+
+try:
+    _VERSION = _pkg_version("dissenter")
+except Exception:
+    _VERSION = "?"
 from .detect import (
     KNOWN_PROVIDERS, detect_api_keys, detect_clis, detect_ollama_models,
     estimate_ollama_memory, infer_auth,
@@ -126,13 +133,26 @@ def ask(
             cfg = load_config(config)
             if output_dir:
                 cfg.output_dir = output_dir
-    except (FileNotFoundError, RuntimeError) as e:
-        err.print(f"[red]Error:[/red] {e}")
+    except FileNotFoundError:
+        from pathlib import Path
+        if Path("dissenter.example.toml").exists():
+            err.print()
+            err.print("[yellow]No dissenter.toml found.[/yellow] Looks like you haven't set up your config yet.\n")
+            err.print("  Copy the example config and customise it:\n")
+            err.print("    [bold]cp dissenter.example.toml dissenter.toml[/bold]   [dim](Mac/Linux)[/dim]")
+            err.print("    [bold]copy dissenter.example.toml dissenter.toml[/bold] [dim](Windows)[/dim]\n")
+            err.print("  Or let the wizard do it:  [bold]dissenter init[/bold]")
+            err.print("  Or auto-generate from Ollama models:  [bold]dissenter init --auto[/bold]\n")
+        else:
+            err.print("\n[yellow]No config found.[/yellow] Run [bold]dissenter init[/bold] to get started.\n")
+        raise typer.Exit(1)
+    except RuntimeError as e:
+        err.print(f"\n[red]Error:[/red] {e}\n")
         raise typer.Exit(1)
 
     total_models = sum(len(r.active_models) for r in cfg.rounds)
     err.print()
-    err.print(Rule("[bold]dissenter[/bold]"))
+    err.print(Rule(f"[bold]dissenter[/bold] [dim]v{_VERSION}[/dim]"))
     err.print(f"  [dim]Question:[/dim] {question}")
     err.print(f"  [dim]Rounds  :[/dim] {len(cfg.rounds)}")
     err.print(f"  [dim]Models  :[/dim] {total_models} across all rounds")
@@ -147,6 +167,12 @@ def ask(
 
     try:
         all_rounds, final_text, synthesis_results = asyncio.run(_main(question, cfg))
+    except KeyboardInterrupt:
+        from .wizard import exit_message
+        err.print()
+        err.print(f"[dim]  {exit_message()}[/dim]")
+        err.print()
+        raise typer.Exit(130)
     except RuntimeError as e:
         err.print()
         err.print(f"[red]Error:[/red] {e}")
@@ -322,20 +348,23 @@ def uninstall(
     import shutil
     from platformdirs import user_config_dir, user_data_dir
 
-    db_path = Path(user_data_dir("dissenter"))
-    cfg_path = Path(user_config_dir("dissenter"))
+    # Deduplicate — on Mac/Windows data and config dirs are the same path
+    paths = list(dict.fromkeys([
+        Path(user_data_dir("dissenter")),
+        Path(user_config_dir("dissenter")),
+    ]))
 
     out.print("\nThis will permanently delete:")
-    out.print(f"  [bold]Database  :[/bold] {db_path}")
-    out.print(f"  [bold]Config dir:[/bold] {cfg_path}")
+    for p in paths:
+        out.print(f"  [bold]{p}[/bold]")
     out.print("\nTo also remove the package:")
-    out.print("  [dim]pip uninstall dissenter[/dim]  or  [dim]uv tool uninstall dissenter[/dim]\n")
+    out.print("  [dim]uv tool uninstall dissenter[/dim]  or  [dim]pip uninstall dissenter[/dim]\n")
 
     if not yes:
         typer.confirm("Proceed?", abort=True)
 
     removed = []
-    for p in (db_path, cfg_path):
+    for p in paths:
         if p.exists():
             shutil.rmtree(p)
             removed.append(str(p))
