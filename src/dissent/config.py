@@ -67,8 +67,8 @@ def load_config(path: Path | None = None) -> DissentConfig:
     candidates: list[Path] = []
     if path:
         candidates.append(path)
-    candidates.append(Path("dissent.toml"))
-    candidates.append(Path(user_config_dir("dissent")) / "config.toml")
+    candidates.append(Path("dissenter.toml"))
+    candidates.append(Path(user_config_dir("dissenter")) / "config.toml")
 
     for candidate in candidates:
         if candidate.exists():
@@ -76,7 +76,7 @@ def load_config(path: Path | None = None) -> DissentConfig:
             return DissentConfig.model_validate(data)
 
     raise FileNotFoundError(
-        "No dissent.toml found. Create one or pass --config <path>."
+        "No dissenter.toml found. Create one with `dissenter init` or pass --config <path>."
     )
 
 

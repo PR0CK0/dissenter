@@ -3,13 +3,13 @@
 UV := $(shell command -v uv 2>/dev/null || echo $(HOME)/.local/bin/uv)
 
 ask:
-	@$(UV) run dissent ask "$(Q)"
+	@$(UV) run dissenter ask "$(Q)"
 
 ask-test:
-	@$(UV) run dissent ask "$(Q)" --config dissent-test.toml
+	@$(UV) run dissenter ask "$(Q)" --config dissenter-test.toml
 
 show:
-	@$(UV) run dissent show
+	@$(UV) run dissenter show
 
 install:
 	@$(UV) sync

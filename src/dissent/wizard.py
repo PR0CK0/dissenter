@@ -38,7 +38,7 @@ def _collect_model(
 
 def _render_toml(rounds_data: list[dict], output_dir: str) -> str:
     lines = [
-        "# dissent — multi-LLM debate engine",
+        "# dissenter — multi-LLM debate engine",
         f'output_dir = "{output_dir}"',
         "",
     ]
@@ -85,7 +85,7 @@ def run_wizard(output_path: Path, force: bool, console: Console) -> None:
     else:
         env_lines.append("  [dim]✗ Ollama   not found or no models installed[/dim]")
 
-    console.print(Panel("\n".join(env_lines), title="[bold]dissent init[/bold]", expand=False))
+    console.print(Panel("\n".join(env_lines), title="[bold]dissenter init[/bold]", expand=False))
     console.print()
 
     if output_path.exists() and not force:
@@ -138,6 +138,6 @@ def run_wizard(output_path: Path, force: bool, console: Console) -> None:
     if typer.confirm(f"Save to {output_path}?", default=True):
         output_path.write_text(toml_content)
         console.print(f"\n[green]✓[/green] Saved [bold]{output_path}[/bold]")
-        console.print(f"  Run [bold]dissent ask \"your question\"[/bold] to get started.")
+        console.print(f"  Run [bold]dissenter ask \"your question\"[/bold] to get started.")
     else:
         console.print("[dim]Cancelled.[/dim]")

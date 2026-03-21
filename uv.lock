@@ -286,8 +286,8 @@ wheels = [
 ]
 
 [[package]]
-name = "dissent"
-version = "0.2.0"
+name = "dissenter"
+version = "1.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "litellm" },

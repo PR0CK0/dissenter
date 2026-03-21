@@ -1,4 +1,4 @@
-# dissent — multi-LLM debate engine
+# dissenter — multi-LLM debate engine
 # Model IDs use litellm format: "provider/model-name"
 # API keys are read from environment variables automatically.
 # See: https://docs.litellm.ai/docs/providers

@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## [1.0.1] — 2026-03-21
+
+### Changed
+- Renamed project/package/CLI from `dissent` to `dissenter` (PyPI name `dissent` was taken).
+  - PyPI package: `pip install dissenter`
+  - CLI command: `dissenter ask / init / models / show`
+  - Default config file: `dissenter.toml` (was `dissent.toml`)
+  - Config dir: `~/.config/dissenter/` (was `~/.config/dissent/`)
+  - GitHub repo renamed to `PR0CK0/dissenter`
+  - Python import path unchanged (`from dissent.xxx import ...`)
+- Bumped version to 1.0.1.
+
+---
+
 ## [1.0.0] — 2026-03-21
 
 ### Added

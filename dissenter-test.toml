@@ -1,4 +1,4 @@
-# dissent — minimal test config
+# dissenter — minimal test config
 # Uses only ministral-3:3b via Ollama — fast, no API keys needed.
 # Same model with different roles is intentional and fully supported.
 #
@@ -6,7 +6,7 @@
 #   ollama serve
 #
 # Usage:
-#   dissent ask "Your question here" --config dissent-test.toml
+#   dissenter ask "Your question here" --config dissenter-test.toml
 #   make ask-test Q="Your question here"
 
 output_dir = "decisions/test"

@@ -16,7 +16,7 @@ from .runner import run_all_rounds
 from .synthesis import synthesize
 
 app = typer.Typer(
-    help="dissent — multi-LLM debate engine for architectural decisions.",
+    help="dissenter — multi-LLM debate engine for architectural decisions.",
     add_completion=False,
 )
 
@@ -111,7 +111,7 @@ def ask(
 ) -> None:
     """Run the full debate pipeline and synthesize a decision.
 
-    Config priority: --quick > --model/--chairman > --config / dissent.toml
+    Config priority: --quick > --model/--chairman > --config / dissenter.toml
     """
     try:
         if quick:
@@ -128,7 +128,7 @@ def ask(
 
     total_models = sum(len(r.active_models) for r in cfg.rounds)
     err.print()
-    err.print(Rule("[bold]dissent[/bold]"))
+    err.print(Rule("[bold]dissenter[/bold]"))
     err.print(f"  [dim]Question:[/dim] {question}")
     err.print(f"  [dim]Rounds  :[/dim] {len(cfg.rounds)}")
     err.print(f"  [dim]Models  :[/dim] {total_models} across all rounds")
@@ -180,10 +180,10 @@ def ask(
 
 @app.command()
 def init(
-    output: Path = typer.Option(Path("dissent.toml"), "--output", "-o", help="Config file to create"),
+    output: Path = typer.Option(Path("dissenter.toml"), "--output", "-o", help="Config file to create"),
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite without prompting"),
 ) -> None:
-    """Interactively create a dissent.toml config file."""
+    """Interactively create a dissenter.toml config file."""
     from .wizard import run_wizard
     run_wizard(output, force, err)
 
@@ -239,7 +239,7 @@ def show(
         err.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
 
-    tree = Tree(f"[bold]dissent[/bold]  [dim]{cfg.output_dir}[/dim]")
+    tree = Tree(f"[bold]dissenter[/bold]  [dim]{cfg.output_dir}[/dim]")
     for i, round_cfg in enumerate(cfg.rounds):
         label = f"Round {i+1}: [cyan]{round_cfg.name or '(unnamed)'}[/cyan]"
         if i == len(cfg.rounds) - 1:

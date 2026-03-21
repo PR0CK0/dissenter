@@ -60,7 +60,7 @@ Synthesize into an ADR using this EXACT structure (do not deviate):
 [Points that require your specific context — team size, existing stack, constraints — that no model could know]
 
 ---
-*Synthesized by dissent from {n_models_total} model responses across {n_rounds} round(s)*
+*Synthesized by dissenter from {n_models_total} model responses across {n_rounds} round(s)*
 
 Be ruthlessly clear, technically precise, and opinionated. No filler.
 """

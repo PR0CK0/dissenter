@@ -1,4 +1,4 @@
-# dissent
+# dissenter
 
 **Run multiple LLMs through a structured debate. Surface where they disagree. Synthesize a decision.**
 
@@ -12,7 +12,7 @@ make ask Q="Should I use Kafka or a Postgres outbox pattern for event-driven mic
 
 - [Why this exists](#why-this-exists)
 - [What the existing tools get wrong](#what-the-existing-tools-get-wrong)
-- [What dissent does differently](#what-dissent-does-differently)
+- [What dissenter does differently](#what-dissent-does-differently)
 - [Architecture](#architecture)
 - [Installation](#installation)
 - [Running](#running)
@@ -43,7 +43,7 @@ For architectural decisions, that's exactly backwards.
 
 **When multiple expert models disagree, that disagreement tells you where the decision is genuinely hard and context-dependent.** That's not noise — it's the most useful information you can get. A tool that eliminates it to produce confident-sounding consensus is actively hiding the difficulty of your decision.
 
-`dissent` treats disagreement as the signal, not the problem.
+`dissenter` treats disagreement as the signal, not the problem.
 
 ---
 
@@ -66,7 +66,7 @@ Every tool assumes you're accessing models via API key. If you have a `claude` C
 
 ---
 
-## What dissent does differently
+## What dissenter does differently
 
 ### 1. Multi-round debate with context passing
 
@@ -96,7 +96,7 @@ The synthesized ADR has a dedicated **Disagreements** section — a structured a
 
 ### 6. Two auth modes: API key or CLI session
 
-Every model can use either an API key **or** the authentication from an installed CLI tool — per model, mixed freely in the same config. If you have `claude` and `gemini` CLIs installed and logged in, dissent works with zero API key configuration. See [CLI auth](#cli-auth--no-api-keys).
+Every model can use either an API key **or** the authentication from an installed CLI tool — per model, mixed freely in the same config. If you have `claude` and `gemini` CLIs installed and logged in, dissenter works with zero API key configuration. See [CLI auth](#cli-auth--no-api-keys).
 
 ### 7. No OpenRouter dependency, genuine provider heterogeneity
 
@@ -108,7 +108,7 @@ Uses [LiteLLM](https://docs.litellm.ai/) directly — a unified interface to 100
 
 ```mermaid
 flowchart TD
-    Q([Question]) --> CFG[Load dissent.toml]
+    Q([Question]) --> CFG[Load dissenter.toml]
     CFG --> R1
 
     subgraph R1["Round 1: debate (parallel)"]
@@ -149,7 +149,7 @@ Requires [uv](https://docs.astral.sh/uv/).
 
 ```bash
 git clone <repo>
-cd dissent
+cd dissenter
 make install
 ```
 
@@ -175,7 +175,7 @@ For Ollama models, start `ollama serve` before running.
 
 ## Running
 
-`make install` puts the package into a local `.venv`. The `dissent` command is **not** on your PATH by default. Three options:
+`make install` puts the package into a local `.venv`. The `dissenter` command is **not** on your PATH by default. Three options:
 
 ```bash
 # Option 1 — make (recommended, always works from the project directory)
@@ -183,12 +183,12 @@ make ask Q="your question"
 make show
 
 # Option 2 — uv run (always works from the project directory)
-uv run dissent ask "your question"
-uv run dissent show
+uv run dissenter ask "your question"
+uv run dissenter show
 
-# Option 3 — install globally so bare `dissent` works anywhere
+# Option 3 — install globally so bare `dissenter` works anywhere
 uv tool install .
-dissent ask "your question"
+dissenter ask "your question"
 ```
 
 **Commands:**
@@ -198,10 +198,10 @@ dissent ask "your question"
 make ask Q="Should I use Kafka or a Postgres outbox pattern?"
 
 # Run with a custom config
-uv run dissent ask "..." --config ~/my-team/dissent.toml
+uv run dissenter ask "..." --config ~/my-team/dissent.toml
 
 # Run with a custom output directory
-uv run dissent ask "..." --output ./architecture/decisions
+uv run dissenter ask "..." --output ./architecture/decisions
 
 # Show configured rounds, models, and roles
 make show
@@ -216,7 +216,7 @@ The final decision is printed to stdout (clickable file link) and written to `de
 
 ## Configuration
 
-Edit `dissent.toml` in the project directory, or `~/.config/dissent/config.toml` for a global default. Pass `--config <path>` to override.
+Edit `dissenter.toml` in the project directory, or `~/.config/dissenter/config.toml` for a global default. Pass `--config <path>` to override.
 
 ### Minimal config
 
@@ -343,7 +343,7 @@ Auto-detected CLI commands by provider prefix:
 
 ### Same model, multiple roles
 
-A round can list the same model ID multiple times with different roles. The `dissent-test.toml` config does this to run the full pipeline with no API keys.
+A round can list the same model ID multiple times with different roles. The `dissenter-test.toml` config does this to run the full pipeline with no API keys.
 
 ```toml
 output_dir = "decisions/test"
@@ -469,7 +469,7 @@ ollama serve
 make ask-test Q="Should I use Redis or Postgres for session storage?"
 ```
 
-`dissent-test.toml` runs `ministral-3:3b` with different roles across all rounds. It exercises the full multi-round pipeline with zero external API access.
+`dissenter-test.toml` runs `ministral-3:3b` with different roles across all rounds. It exercises the full multi-round pipeline with zero external API access.
 
 **`ministral-3:3b` is the recommended Ollama baseline.** Fast, coherent under adversarial role prompting, and produces structured output reliably at 3B params.
 
@@ -477,7 +477,7 @@ make ask-test Q="Should I use Redis or Postgres for session storage?"
 
 ## Comparison
 
-| Feature | dissent | llm-council | llm-consortium | consilium | MoA ref impl |
+| Feature | dissenter | llm-council | llm-consortium | consilium | MoA ref impl |
 |---------|:---:|:---:|:---:|:---:|:---:|
 | Role-differentiated prompts | ✓ | ✗ | ✗ | ✗ | ✗ |
 | Multi-round debate hierarchy | ✓ | ✗ | partial¹ | partial² | partial³ |
@@ -506,7 +506,7 @@ make ask-test Q="Should I use Redis or Postgres for session storage?"
 
 ## Academic foundations
 
-- **Mixture of Agents** (arXiv 2406.04692, TogetherAI, June 2024) — the canonical proposer→aggregator architecture. dissent is a multi-layer MoA with adversarial role differentiation on the proposer layer.
+- **Mixture of Agents** (arXiv 2406.04692, TogetherAI, June 2024) — the canonical proposer→aggregator architecture. dissenter is a multi-layer MoA with adversarial role differentiation on the proposer layer.
 - **ICE: Iterative Critique and Ensemble** (medrxiv, December 2024) — mutual critique between models before synthesis yields +7–45% accuracy on hard benchmarks. Basis for the planned `--deep` mode.
 - **LLM Ensemble Survey** (arXiv 2502.18036, February 2025) — taxonomy of ensemble methods; identifies prompt diversity as the strongest lever.
 - **Rethinking MoA** (OpenReview 2025) — finds diverse *framing* of the same question outperforms diverse *models* asked the same way. Direct justification for role-differentiated prompting.
@@ -523,7 +523,7 @@ make ask-test Q="Should I use Redis or Postgres for session storage?"
 - [x] Per-model `api_key` override in `[[rounds.models]]`
 - [x] CLI session auth (`auth = "cli"`) — use installed CLIs without API keys
 - [x] Same model, different roles in a single round
-- [x] `dissent show` — rich tree view of configured rounds
+- [x] `dissenter show` — rich tree view of configured rounds
 
 **Still to do:**
 - [ ] `--deep` flag: peer critique round (ICE paper, +7–45% accuracy on hard benchmarks)
