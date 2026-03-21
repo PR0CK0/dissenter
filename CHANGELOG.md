@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented here.
 
+## [1.2.0] — 2026-03-21
+
+### Added
+- **Questionary wizard** — `dissenter init` now uses arrow-key selection and autocomplete instead of free-text prompts.
+  - Model ID: autocomplete from detected Ollama models + curated cloud model list, type to filter.
+  - Role: arrow-key select from all 10 built-in roles, with a custom escape hatch.
+  - Auth: select with inferred default and plain-English descriptions.
+  - Final round type: select (chairman vs dual-arbiter).
+- **Exit messages** — Ctrl+C anywhere (wizard or mid-debate) shows a random cryptic message from a pool of 12 thematic lines.
+- **Version in header** — `ask` header now shows `dissenter vX.Y.Z` pulled live from package metadata.
+
+### Changed
+- `dissenter.toml` renamed to `dissenter.example.toml` — follows `.env.example` convention. Copy it to `dissenter.toml` (gitignored) to get started.
+- `dissenter.toml` added to `.gitignore` — safe to include `api_key` entries without committing secrets.
+- `dissenter init` — detects example-only state and offers to copy it before running the full wizard.
+- `dissenter ask` — missing config error is now rich-formatted with exact copy commands per platform.
+- `dissenter uninstall` — deduplicates paths on Mac/Windows where data and config dirs are the same.
+- Wizard no longer prompts for output directory — hardcoded to `decisions`, editable in the TOML.
+- `just test` and `just install` now include dev extras so `pytest-asyncio` is always present.
+
+---
+
 ## [1.1.0] — 2026-03-21
 
 ### Added
