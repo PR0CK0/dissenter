@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here.
 
+## [1.0.5] — 2026-03-21
+
+### Added
+- **SQLite persistence** (`db.py`) — all runs stored in platform-native data dir (`platformdirs.user_data_dir`). Cross-platform: Mac `~/Library/Application Support/dissenter/`, Linux `~/.local/share/dissenter/`, Windows `%LOCALAPPDATA%\dissenter\`.
+- **`dissenter history`** — browse and search past decisions interactively. Numbered table, keyword filter (`--search`), open any decision by number, shows re-run command.
+- **`dissenter clear`** — delete all run history from the database.
+- **`dissenter uninstall`** — remove all app data (database + config presets) from the machine.
+- **Ollama memory estimation** — `ask` shows estimated peak RAM for Ollama models before running. Warns at ≥8 GB, alerts at ≥16 GB. Based on concurrent models per round (not total).
+- **Config snapshot** — every `ask` run writes `config.toml` to the run directory for exact re-runs: `dissenter ask "..." --config decisions/<ts>/config.toml`.
+- **Named presets** — `dissenter init --save <name>` saves to `~/.config/dissenter/<name>.toml`. `dissenter ask "q" --config <name>` resolves by name automatically.
+- **`dissenter init --auto`** — non-interactive: auto-generates a config from all local Ollama models. `--memory <GB>` fits models within a RAM budget per round. `--rounds <N>` sets debate depth.
+- **`Justfile`** — cross-platform shortcuts for all commands (Windows/Linux/Mac). `just ask "question"`, `just init-auto memory=8`, `just global-install`, etc.
+- **`just global-install`** — installs `dissenter` globally via `uv tool install .` so `dissenter` works anywhere without `uv run`.
+
+### Changed
+- `dissenter init` default: warns clearly if `dissenter.toml` already exists instead of silently overwriting. Suggests `--force` or `--save <name>`.
+- `--config` on `ask`/`show` now accepts a preset name (no path separators) and resolves to `~/.config/dissenter/<name>.toml`.
+
+---
+
 ## [1.0.4] — 2026-03-21
 
 ### Added

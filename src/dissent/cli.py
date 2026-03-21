@@ -8,10 +8,14 @@ from typing import Optional, List
 import typer
 from rich.console import Console
 from rich.rule import Rule
+from rich.table import Table
 from rich.tree import Tree
 
-from .config import DissentConfig, ModelConfig, RoundConfig, load_config
-from .detect import KNOWN_PROVIDERS, detect_api_keys, detect_clis, detect_ollama_models, infer_auth
+from .config import DissentConfig, ModelConfig, RoundConfig, config_to_toml, load_config
+from .detect import (
+    KNOWN_PROVIDERS, detect_api_keys, detect_clis, detect_ollama_models,
+    estimate_ollama_memory, infer_auth,
+)
 from .runner import run_all_rounds
 from .synthesis import synthesize
 
@@ -132,6 +136,13 @@ def ask(
     err.print(f"  [dim]Question:[/dim] {question}")
     err.print(f"  [dim]Rounds  :[/dim] {len(cfg.rounds)}")
     err.print(f"  [dim]Models  :[/dim] {total_models} across all rounds")
+
+    mem = estimate_ollama_memory(cfg)
+    if mem["peak_bytes"] > 0:
+        peak_gb = mem["peak_bytes"] / 1024 ** 3
+        err.print(f"  [dim]Ollama RAM:[/dim] ~{peak_gb:.1f} GB peak (models run in parallel per round)")
+    if mem["warning"]:
+        err.print(f"  [yellow]⚠  {mem['warning']}[/yellow]")
     err.print()
 
     try:
@@ -154,19 +165,53 @@ def ask(
             safe = r.model_id.replace("/", "_").replace(":", "_")
             role_safe = r.role.replace(" ", "_").replace("'", "")
             fname = f"{safe}__{role_safe}"
-            (round_dir / f"{fname}.md").write_text(r.content or "")
+            (round_dir / f"{fname}.md").write_text(r.content or "", encoding="utf-8")
             if r.error:
-                (round_dir / f"{fname}.err").write_text(r.error)
+                (round_dir / f"{fname}.err").write_text(r.error, encoding="utf-8")
 
     final_round_dir = run_dir / f"round_{len(all_rounds)}_{cfg.rounds[-1].name or 'final'}"
     final_round_dir.mkdir(exist_ok=True)
     for r in synthesis_results:
         safe = r.model_id.replace("/", "_").replace(":", "_")
         role_safe = r.role.replace(" ", "_").replace("'", "")
-        (final_round_dir / f"{safe}__{role_safe}.md").write_text(r.content or "")
+        (final_round_dir / f"{safe}__{role_safe}.md").write_text(r.content or "", encoding="utf-8")
 
     output_file = run_dir / "decision.md"
-    output_file.write_text(final_text)
+    output_file.write_text(final_text, encoding="utf-8")
+
+    # Snapshot the config alongside the run for exact re-runs
+    cfg_toml = config_to_toml(cfg)
+    (run_dir / "config.toml").write_text(cfg_toml, encoding="utf-8")
+
+    # Persist to SQLite
+    from .db import save_run as db_save_run
+    db_rounds = []
+    for rr in all_rounds:
+        db_rounds.append({
+            "round_index": rr.round_index,
+            "name": rr.round_name,
+            "outputs": [
+                {
+                    "model_id": r.model_id,
+                    "role": r.role,
+                    "auth": "api",
+                    "content_md": r.content,
+                    "error_msg": r.error,
+                    "elapsed_ms": None,
+                }
+                for r in rr.results
+            ],
+        })
+    try:
+        db_save_run(
+            question=question,
+            config_toml=cfg_toml,
+            decision_md=final_text,
+            run_dir=str(run_dir.absolute()),
+            rounds=db_rounds,
+        )
+    except Exception:
+        pass  # DB failure never breaks a completed run
 
     abs_file = output_file.absolute()
     abs_dir = run_dir.absolute()
@@ -182,10 +227,124 @@ def ask(
 def init(
     output: Path = typer.Option(Path("dissenter.toml"), "--output", "-o", help="Config file to create"),
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite without prompting"),
+    save: Optional[str] = typer.Option(None, "--save", "-s", help="Save as a named preset (~/.config/dissenter/<name>.toml)"),
+    auto: bool = typer.Option(False, "--auto", help="Auto-generate config from local Ollama models (no wizard)"),
+    rounds: int = typer.Option(1, "--rounds", "-r", help="Number of debate rounds (used with --auto)"),
+    memory: Optional[float] = typer.Option(None, "--memory", "-m", help="RAM budget in GB per round (used with --auto)"),
 ) -> None:
-    """Interactively create a dissenter.toml config file."""
-    from .wizard import run_wizard
-    run_wizard(output, force, err)
+    """Create a config file interactively, or auto-generate from local Ollama models.
+
+    Examples:
+      dissenter init                         # interactive wizard → dissenter.toml
+      dissenter init --save fast             # wizard → ~/.config/dissenter/fast.toml
+      dissenter init --auto                  # auto-detect all Ollama models
+      dissenter init --auto --memory 8       # fit models within 8 GB per round
+      dissenter init --auto --rounds 2 --memory 16 --save deep
+    """
+    from .wizard import run_auto_wizard, run_wizard
+    if auto:
+        run_auto_wizard(output, save, rounds, memory, err)
+    else:
+        run_wizard(output, force, save, err)
+
+
+@app.command()
+def history(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Filter by keyword"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Max results to show"),
+) -> None:
+    """Browse past decisions stored in the local database."""
+    from .db import get_run, list_runs
+
+    runs = list_runs(limit=limit, search=search)
+    if not runs:
+        msg = f"No decisions found matching '{search}'." if search else "No decisions yet. Run `dissenter ask` to get started."
+        out.print(f"[dim]{msg}[/dim]")
+        return
+
+    table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
+    table.add_column("#", style="dim", width=4)
+    table.add_column("Date", width=19)
+    table.add_column("Question")
+    for i, run in enumerate(runs, 1):
+        table.add_row(str(i), run["timestamp"], run["question"])
+
+    out.print()
+    out.print(table)
+    out.print()
+
+    raw = typer.prompt("Enter number to view decision, or press Enter to quit", default="")
+    if not raw.strip():
+        return
+    try:
+        idx = int(raw.strip()) - 1
+        selected = runs[idx]
+    except (ValueError, IndexError):
+        out.print("[red]Invalid selection.[/red]")
+        return
+
+    run = get_run(selected["id"])
+    if run:
+        out.print()
+        out.print(Rule(f"[bold]Decision #{selected['id']}[/bold]  [dim]{selected['timestamp']}[/dim]"))
+        out.print(run["decision_md"])
+        if run.get("run_dir"):
+            p = Path(run["run_dir"])
+            out.print()
+            out.print(f"[dim]Run dir: [link=file://{p}]{p}[/link][/dim]")
+            cfg_file = p / "config.toml"
+            if cfg_file.exists():
+                out.print(f"[dim]Re-run:  dissenter ask \"...\" --config {cfg_file}[/dim]")
+    out.print()
+
+
+@app.command()
+def clear(
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+) -> None:
+    """Delete all run history from the local database."""
+    from .db import get_db_path
+    db_path = get_db_path()
+    if not db_path.exists():
+        out.print("[dim]No database found — nothing to clear.[/dim]")
+        return
+    if not yes:
+        typer.confirm(f"Delete all run history from {db_path}?", abort=True)
+    db_path.unlink()
+    out.print(f"[green]✓[/green] Cleared: {db_path}")
+
+
+@app.command()
+def uninstall(
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+) -> None:
+    """Remove all dissenter data (database and config presets) from this machine."""
+    import shutil
+    from platformdirs import user_config_dir, user_data_dir
+
+    db_path = Path(user_data_dir("dissenter"))
+    cfg_path = Path(user_config_dir("dissenter"))
+
+    out.print("\nThis will permanently delete:")
+    out.print(f"  [bold]Database  :[/bold] {db_path}")
+    out.print(f"  [bold]Config dir:[/bold] {cfg_path}")
+    out.print("\nTo also remove the package:")
+    out.print("  [dim]pip uninstall dissenter[/dim]  or  [dim]uv tool uninstall dissenter[/dim]\n")
+
+    if not yes:
+        typer.confirm("Proceed?", abort=True)
+
+    removed = []
+    for p in (db_path, cfg_path):
+        if p.exists():
+            shutil.rmtree(p)
+            removed.append(str(p))
+
+    if removed:
+        for r in removed:
+            out.print(f"[green]✓[/green] Removed: {r}")
+    else:
+        out.print("[dim]Nothing to remove.[/dim]")
 
 
 @app.command()

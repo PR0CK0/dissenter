@@ -155,11 +155,20 @@ flowchart TD
 
 Requires [uv](https://docs.astral.sh/uv/).
 
+**Option A — install from PyPI (recommended):**
 ```bash
-git clone <repo>
-cd dissenter
-make install
+uv tool install dissenter    # puts `dissenter` on PATH everywhere
 ```
+
+**Option B — from source:**
+```bash
+git clone https://github.com/PR0CK0/dissenter
+cd dissenter
+just global-install          # installs globally via uv tool
+# or: just install           # local .venv only (use `uv run dissenter ...`)
+```
+
+`uv tool install` automatically adds `dissenter` to your PATH on all platforms — no manual env var setup needed.
 
 **Choose your auth method — or mix them freely:**
 
@@ -202,23 +211,38 @@ dissenter ask "your question"
 **Commands:**
 
 ```bash
-# Run a debate
-make ask Q="Should I use Kafka or a Postgres outbox pattern?"
+dissenter ask "Should I use Kafka or Postgres outbox?"   # run a debate
+dissenter ask "..." --config fast                        # use a named preset
+dissenter ask "..." --config decisions/20260321/config.toml  # re-run exact config
+dissenter ask "..." --quick                              # auto-detect Ollama models
+dissenter ask "..." --output ./architecture/decisions    # custom output dir
 
-# Run with a custom config
-uv run dissenter ask "..." --config ~/my-team/dissent.toml
+dissenter init                       # interactive wizard → dissenter.toml
+dissenter init --save fast           # wizard → ~/.config/dissenter/fast.toml
+dissenter init --auto                # auto-generate from all local Ollama models
+dissenter init --auto --memory 8     # fit within 8 GB RAM per round
+dissenter init --auto --rounds 2 --memory 16 --save deep
 
-# Run with a custom output directory
-uv run dissenter ask "..." --output ./architecture/decisions
+dissenter models                     # show detected models, CLIs, and API keys
+dissenter show                       # show current config (rounds, models, roles)
+dissenter history                    # browse past decisions
+dissenter history --search "Kafka"   # filter by keyword
 
-# Show configured rounds, models, and roles
-make show
-
-# Run local-only with no API keys
-make ask-test Q="Should I use Kafka or a Postgres outbox pattern?"
+dissenter clear                      # delete all run history
+dissenter uninstall                  # remove all app data from this machine
 ```
 
-The final decision is printed to stdout (clickable file link) and written to `decisions/decision_<timestamp>.md`.
+Or with `just` (cross-platform shortcuts):
+
+```bash
+just ask "Should I use Kafka?"
+just init-auto memory=8 rounds=2
+just history
+just search "Kafka"
+just global-install   # put `dissenter` on PATH system-wide
+```
+
+Every run saves a `config.toml` snapshot alongside the decision, so any past run is exactly reproducible.
 
 ---
 

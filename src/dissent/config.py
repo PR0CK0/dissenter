@@ -66,18 +66,68 @@ class DissentConfig(BaseModel):
 def load_config(path: Path | None = None) -> DissentConfig:
     candidates: list[Path] = []
     if path:
-        candidates.append(path)
+        p = Path(path)
+        # bare name with no separators → treat as a named preset
+        if not p.exists() and "/" not in str(path) and "\\" not in str(path):
+            p = Path(user_config_dir("dissenter")) / f"{path}.toml"
+        candidates.append(p)
     candidates.append(Path("dissenter.toml"))
     candidates.append(Path(user_config_dir("dissenter")) / "config.toml")
 
     for candidate in candidates:
         if candidate.exists():
-            data = tomllib.loads(candidate.read_text())
+            data = tomllib.loads(candidate.read_text(encoding="utf-8"))
             return DissentConfig.model_validate(data)
 
     raise FileNotFoundError(
         "No dissenter.toml found. Create one with `dissenter init` or pass --config <path>."
     )
+
+
+def config_to_toml(cfg: DissentConfig) -> str:
+    """Serialize a DissentConfig back to TOML text (no extra dependencies)."""
+    lines: list[str] = [
+        "# dissenter — config snapshot",
+        f'output_dir = "{cfg.output_dir}"',
+        "",
+    ]
+    if cfg.default_model:
+        lines.append(f'default_model = "{cfg.default_model}"')
+        lines.append("")
+    if cfg.role_distribution:
+        lines.append("[role_distribution]")
+        for role, weight in cfg.role_distribution.items():
+            lines.append(f'"{role}" = {weight}')
+        lines.append("")
+
+    for i, rnd in enumerate(cfg.rounds):
+        is_final = i == len(cfg.rounds) - 1
+        label = f"Final: {rnd.name}" if is_final else f"Round {i + 1}: {rnd.name}"
+        fill = "─" * max(4, 52 - len(label))
+        lines += [f"# ── {label} {fill}", "[[rounds]]", f'name = "{rnd.name}"']
+        if rnd.combine_model:
+            lines.append(f'combine_model   = "{rnd.combine_model}"')
+            lines.append(f'combine_timeout = {rnd.combine_timeout}')
+        lines.append("")
+        for m in rnd.models:
+            lines.append("[[rounds.models]]")
+            lines.append(f'id      = "{m.id}"')
+            lines.append(f'role    = "{m.role}"')
+            if not m.enabled:
+                lines.append("enabled = false")
+            if m.auth != "api":
+                lines.append(f'auth    = "{m.auth}"')
+            lines.append(f'timeout = {m.timeout}')
+            if m.api_key:
+                lines.append(f'api_key = "{m.api_key}"')
+            if m.cli_command:
+                lines.append(f'cli_command = "{m.cli_command}"')
+            if m.extra:
+                kv = ", ".join(f'{k} = "{v}"' for k, v in m.extra.items())
+                lines.append(f'extra   = {{ {kv} }}')
+            lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def assign_random_roles(
