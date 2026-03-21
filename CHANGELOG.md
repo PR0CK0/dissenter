@@ -1,0 +1,60 @@
+# Changelog
+
+All notable changes to this project are documented here.
+
+## [0.2.0] — 2026-03-21
+
+### Added
+- **CLI auth mode** (`auth = "cli"`): Each model can now authenticate via a locally-installed
+  provider CLI instead of an API key. Auto-detects `claude` for Anthropic and `gemini` for
+  Google/Gemini providers. Override with `cli_command = "..."` in config.
+- **Dual-arbiter final round**: Final round can have 2 models (conservative + liberal roles)
+  combined side-by-side using a `combine_model`. Output is a `Dual Recommendation` document.
+- **Synthesis respects auth mode**: Synthesis phase now correctly routes through CLI or API
+  based on each model's `auth` field (was previously always using litellm).
+- **Error classification**: Friendly error messages for missing API keys, Ollama not running,
+  model not installed, rate limits, and context window exceeded.
+- **Clickable output links**: Terminal output uses OSC 8 hyperlinks to the saved decision file.
+- `dissent-test.toml`: Minimal test config using `ollama/ministral-3:3b` (no API keys needed).
+- `ensemble` binary removed from tracked files.
+
+### Changed
+- `dissent.toml`: Updated to use `auth = "cli"` for Anthropic and Gemini models.
+- `dissent.toml`: Fixed `qwen2.5:7b` → `qwen2.5:1.5b`.
+- `dissent.toml`: Fixed `ministral:3b` → `ministral-3:3b`.
+- CLI no longer prints full ADR to stdout; links to the saved file instead.
+
+### Fixed
+- Same model with different roles in one round: composite key `id::role::index` prevents
+  collision when the same model ID appears multiple times.
+- Synthesis `combine_model` (a string) is now wrapped in a `ModelConfig` for routing.
+
+---
+
+## [0.1.0] — 2026-03-18
+
+### Added
+- **Multi-round debate engine**: Arbitrary number of sequential rounds; models run in parallel
+  within each round and receive prior round context.
+- **Enforced final round**: Last `[[rounds]]` block must have exactly 1 model (chairman) or
+  2 models with a `combine_model` (dual-arbiter). Validated at config load.
+- **Role prompt system**: 10 adversarial roles extracted to individual TOML files under
+  `src/dissent/roles/`. Roles: analyst, chairman, conservative, contrarian, devil's advocate,
+  liberal, pragmatist, researcher, second opinion, skeptic.
+- **ADR output**: Chairman synthesis produces a structured Architectural Decision Record with
+  Context, Consensus, Disagreements, Options, Decision, Consequences, and Open Questions.
+- **Rich live status display**: Per-round tables showing model, role, elapsed time, and
+  word count / error for each model as they complete.
+- **Config validation**: pydantic v2 models with `model_validator` enforcing round constraints.
+- **`dissent ask`**: Run a debate and save output to `decisions/` with timestamped filenames.
+- **`dissent show`**: List saved decisions and open one interactively.
+- **Debug dir**: Per-run `debug/` subdirectory with raw round outputs for inspection.
+- **Unit and integration tests**: 23 tests across config, roles, runner, and integration.
+- **Makefile**: `ask`, `ask-test`, `show`, `install`, `test` targets.
+- **README**: Full documentation with architecture diagram, competitor comparison, install
+  guide, config reference, role catalog, and academic foundations.
+
+### Project
+- Renamed from `llm-ensemble` to `dissent`.
+- Package: `dissent` v0.1.0 → v0.2.0 (single release includes all above).
+- Requires Python 3.11+, uv, litellm, typer, rich, pydantic, platformdirs.
