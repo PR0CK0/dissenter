@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here.
 
+## [1.4.0] — 2026-03-22
+
+### Added
+- **`--deep` flag** — injects a mutual critique round between the last debate round and final synthesis. Each model receives the other models' prior outputs and writes a structured critique: what's wrong, what was missed, and what would change its stance. The chairman reads all debate + critique before synthesizing the ADR. Based on the ICE paper (medrxiv, Dec 2024), which found mutual critique before synthesis yields +7–45% accuracy on hard benchmarks.
+
+### Changed
+- **Round counter** — `Round N of M` now correctly counts the injected critique round (e.g. `Round 2 of 3: critique` with `--deep`).
+- **Synthesis spinner** — animated dots spinner shown while the chairman is writing, replacing the blank pause.
+- **Clickable output links** — switched to `Path.as_uri()` (`file:///...`) for proper OSC 8 hyperlinks in supported terminals.
+- README updated with `--deep` flag in the `ask` command table and roadmap checked off.
+
+---
+
 ## [1.3.0] — 2026-03-21
 
 ### Changed

@@ -119,6 +119,9 @@ def ask(
     quick: bool = typer.Option(
         False, "--quick", help="Auto-detect installed Ollama models and run immediately"
     ),
+    deep: bool = typer.Option(
+        False, "--deep", help="Inject a mutual critique round after debate, before synthesis (+accuracy)"
+    ),
 ) -> None:
     """Run the full debate pipeline and synthesize a decision.
 
@@ -154,7 +157,7 @@ def ask(
     err.print()
     err.print(Rule(f"[bold]dissenter[/bold] [dim]v{_VERSION}[/dim]"))
     err.print(f"  [dim]Question:[/dim] {question}")
-    err.print(f"  [dim]Rounds  :[/dim] {len(cfg.rounds)}")
+    err.print(f"  [dim]Rounds  :[/dim] {len(cfg.rounds)}{' + critique' if deep else ''}")
     err.print(f"  [dim]Models  :[/dim] {total_models} across all rounds")
 
     mem = estimate_ollama_memory(cfg)
@@ -166,7 +169,7 @@ def ask(
     err.print()
 
     try:
-        all_rounds, final_text, synthesis_results = asyncio.run(_main(question, cfg))
+        all_rounds, final_text, synthesis_results = asyncio.run(_main(question, cfg, deep))
     except KeyboardInterrupt:
         from .wizard import exit_message
         err.print()
@@ -244,8 +247,8 @@ def ask(
 
     err.print()
     err.print(Rule("[bold green]Done[/bold green]"))
-    err.print(f"  [green]Decision :[/green] [link=file://{abs_file}]{abs_file}[/link]")
-    err.print(f"  [dim]Run dir  : [link=file://{abs_dir}]{abs_dir}[/link][/dim]")
+    err.print(f"  [green]Decision :[/green] [link={abs_file.as_uri()}]{abs_file}[/link]")
+    err.print(f"  [dim]Run dir  : [link={abs_dir.as_uri()}]{abs_dir}[/link][/dim]")
     err.print()
 
 
@@ -451,12 +454,20 @@ def show(
             out.print(f"  {role}: {weight:.0%}")
 
 
-async def _main(question: str, cfg: DissentConfig):
+async def _main(question: str, cfg: DissentConfig, deep: bool = False):
+    from rich.live import Live
+    from rich.spinner import Spinner
+    from rich.text import Text
+
     err.print(Rule("[dim]beginning debate[/dim]", style="dim"))
-    all_rounds = await run_all_rounds(cfg, question)
+    all_rounds = await run_all_rounds(cfg, question, deep=deep)
 
     err.print()
     err.print(Rule("[dim]synthesizing[/dim]", style="dim"))
+    err.print()
 
-    final_text, synthesis_results = await synthesize(question, all_rounds, cfg)
+    spinner = Spinner("dots", text=Text(" Chairman is writing the decision...", style="dim"))
+    with Live(spinner, console=err, refresh_per_second=10):
+        final_text, synthesis_results = await synthesize(question, all_rounds, cfg)
+
     return all_rounds, final_text, synthesis_results

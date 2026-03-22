@@ -54,6 +54,33 @@ _PRIOR_CONTEXT_TEMPLATE = """\
 
 """
 
+_CRITIQUE_PROMPT = """\
+You are a senior software architect. {role_instruction}
+
+You previously responded to this question:
+{question}
+
+Your prior response:
+{own_response}
+
+The other models responded as follows:
+{other_responses}
+
+Now write a structured critique. Be direct and harsh where warranted.
+
+## Where the other arguments are wrong or incomplete
+- [bullet per flaw]
+
+## What they all missed
+- [bullet — shared blind spots across all responses]
+
+## What would change your own recommendation
+[1-2 sentences: what specific evidence, constraint, or context would flip your view]
+
+## Revised stance (if any)
+[1 sentence: does your recommendation hold or change? Why.]
+"""
+
 
 @dataclass
 class ModelResult:
@@ -253,6 +280,103 @@ def _status_table(
     return table
 
 
+async def _query_model_critique(
+    cfg: ModelConfig,
+    round_name: str,
+    question: str,
+    own_response: str,
+    other_responses: str,
+    role_prompts: dict[str, str],
+) -> ModelResult:
+    role_instruction = get_prompt(cfg.role, role_prompts)
+    prompt = _CRITIQUE_PROMPT.format(
+        role_instruction=role_instruction,
+        question=question,
+        own_response=own_response,
+        other_responses=other_responses,
+    )
+    start = time.monotonic()
+    result = ModelResult(model_id=cfg.id, role=cfg.role, round_name=round_name)
+    try:
+        if cfg.auth == "cli":
+            result.content = await asyncio.wait_for(
+                _query_model_cli(cfg, prompt),
+                timeout=cfg.timeout,
+            )
+        else:
+            kwargs: dict = {
+                "model": cfg.id,
+                "messages": [{"role": "user", "content": prompt}],
+                **cfg.extra,
+            }
+            if cfg.api_key:
+                kwargs["api_key"] = cfg.api_key
+            response = await asyncio.wait_for(
+                litellm.acompletion(**kwargs),
+                timeout=cfg.timeout,
+            )
+            result.content = response.choices[0].message.content or ""
+        result.elapsed = time.monotonic() - start
+    except asyncio.TimeoutError:
+        result.error = f"timed out after {cfg.timeout}s"
+        result.elapsed = float(cfg.timeout)
+    except Exception as exc:
+        result.error = _classify_error(exc)
+        result.elapsed = time.monotonic() - start
+    return result
+
+
+async def run_critique_round(
+    round_cfg: RoundConfig,
+    debate_rr: RoundResult,
+    round_index: int,
+    question: str,
+    role_prompts: dict[str, str],
+) -> RoundResult:
+    """Mutual critique pass: each model critiques the other models' debate outputs."""
+    round_name = "critique"
+    active = round_cfg.active_models
+    keys = [f"{m.id}::{m.role}::{i}" for i, m in enumerate(active)]
+
+    # Map key → own prior response
+    own_responses: dict[str, str] = {
+        k: r.content or "" for k, r in zip(keys, debate_rr.results)
+    }
+
+    results: dict[str, ModelResult] = {
+        k: ModelResult(model_id=m.id, role=m.role, round_name=round_name)
+        for k, m in zip(keys, active)
+    }
+    done: set[str] = set()
+    start_times: dict[str, float] = {k: time.monotonic() for k in keys}
+
+    async def run_and_track(key: str, cfg: ModelConfig, own: str, others: str) -> None:
+        res = await _query_model_critique(cfg, round_name, question, own, others, role_prompts)
+        results[key] = res
+        done.add(key)
+
+    tasks = []
+    for k, m in zip(keys, active):
+        own = own_responses[k]
+        others_parts = [
+            f"**{r.short_id}** (role: {r.role}):\n{r.content}"
+            for r, rk in zip(debate_rr.results, keys)
+            if rk != k and r.success
+        ]
+        others = "\n\n---\n\n".join(others_parts)
+        tasks.append(asyncio.create_task(run_and_track(k, m, own, others)))
+
+    with Live(console=console, refresh_per_second=4, transient=False) as live:
+        while not all(t.done() for t in tasks):
+            live.update(_status_table(round_name, round_index, results, done, start_times))
+            await asyncio.sleep(0.25)
+        live.update(_status_table(round_name, round_index, results, done, start_times))
+
+    rr = RoundResult(round_name=round_name, round_index=round_index)
+    rr.results = list(results.values())
+    return rr
+
+
 async def run_round(
     round_cfg: RoundConfig,
     round_index: int,
@@ -294,9 +418,13 @@ async def run_round(
 async def run_all_rounds(
     cfg: DissentConfig,
     question: str,
+    deep: bool = False,
 ) -> list[RoundResult]:
     role_prompts = load_roles()
     all_results: list[RoundResult] = []
+    # Total display count includes the injected critique round when --deep
+    total_display = len(cfg.rounds) + (1 if deep and len(cfg.rounds) > 1 else 0)
+    display_num = 0
 
     for i, round_cfg in enumerate(cfg.rounds):
         active = round_cfg.active_models
@@ -304,8 +432,9 @@ async def run_all_rounds(
             console.print(f"[yellow]Round {i+1} '{round_cfg.name}' has no enabled models, skipping.[/yellow]")
             continue
 
+        display_num += 1
         console.print()
-        console.print(Rule(f"[bold]Round {i+1} of {len(cfg.rounds)}: {round_cfg.name or ''}[/bold] ({len(active)} models)", style="dim"))
+        console.print(Rule(f"[bold]Round {display_num} of {total_display}: {round_cfg.name or ''}[/bold] ({len(active)} models)", style="dim"))
 
         rr = await run_round(round_cfg, i, question, all_results, role_prompts)
         all_results.append(rr)
@@ -314,5 +443,13 @@ async def run_all_rounds(
             raise RuntimeError(
                 f"All models failed in round {i+1} '{round_cfg.name}'. Cannot continue."
             )
+
+        # After the last debate round (one before final), inject mutual critique
+        if deep and i == len(cfg.rounds) - 2 and len(rr.successful) > 1:
+            display_num += 1
+            console.print()
+            console.print(Rule(f"[bold]Round {display_num} of {total_display}: critique[/bold] [dim](--deep)[/dim] ({len(active)} models)", style="dim"))
+            critique_rr = await run_critique_round(round_cfg, rr, len(all_results), question, role_prompts)
+            all_results.append(critique_rr)
 
     return all_results

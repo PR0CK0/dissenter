@@ -168,10 +168,9 @@ async def synthesize(
     role_prompts = load_roles()
     final_round = cfg.rounds[-1]
     active = final_round.active_models
-    all_round_outputs = _format_all_rounds(all_rounds[:-1] if len(all_rounds) == len(cfg.rounds) else all_rounds)
-
-    # Count total models consulted across all debate rounds (not final)
-    debate_rounds = all_rounds[:-1] if len(all_rounds) >= len(cfg.rounds) else all_rounds
+    # Always exclude the final round's regular run — re-run below with synthesis prompt.
+    # Correct with and without --deep (critique round, if injected, is all_rounds[-2]).
+    debate_outputs = _format_all_rounds(all_rounds[:-1])
     n_models_total = sum(len(rr.successful) for rr in all_rounds)
 
     if len(active) == 1:
@@ -179,7 +178,7 @@ async def synthesize(
         arbiter = active[0]
         prompt = _SYNTHESIS_PROMPT.format(
             question=question,
-            all_round_outputs=_format_all_rounds(all_rounds),
+            all_round_outputs=debate_outputs,
             date=date.today().isoformat(),
             n_rounds=len(all_rounds),
             n_models_total=n_models_total,
@@ -193,7 +192,7 @@ async def synthesize(
 
     else:
         # Dual arbiter: conservative + liberal
-        debate_context = _format_all_rounds(all_rounds)
+        debate_context = debate_outputs
 
         async def call_arbiter(m) -> ModelResult:
             role_instruction = get_prompt(m.role, role_prompts)

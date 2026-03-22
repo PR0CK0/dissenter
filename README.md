@@ -212,6 +212,7 @@ Run a debate and save the decision.
 | `--model <id[@role]>` | Add a model inline — repeatable, bypasses config file |
 | `--chairman <id>` | Set the final-round chairman when using `--model` |
 | `--output <dir>` | Override the output directory (default: `decisions/`) |
+| `--deep` | Inject a mutual critique round before synthesis — each model critiques the others' arguments, then the chairman synthesizes everything |
 
 ```bash
 dissenter ask "Should I use Kafka or Postgres outbox?"
@@ -620,7 +621,7 @@ dissenter ask "Should I use Redis or Postgres for session storage?" --config dis
 - [x] `dissenter uninstall` — full app data removal
 
 **Planned:**
-- [ ] `--deep` flag: peer critique round (ICE paper, +7–45% accuracy on hard benchmarks)
+- [x] `--deep` flag: peer critique round (ICE paper, +7–45% accuracy on hard benchmarks)
 - [ ] Disagreement classifier: factual vs. trade-off vs. context-dependent
 - [ ] Confidence scoring: each model rates certainty and states what would change its answer
 - [ ] Dynamic role inference: infer relevant roles from question type (security, performance, cost, maintainability)
