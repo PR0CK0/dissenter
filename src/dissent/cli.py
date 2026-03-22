@@ -467,8 +467,14 @@ async def _main(question: str, cfg: DissentConfig, deep: bool = False):
     err.print()
 
     from .wizard import synthesis_message
+
+    task = asyncio.create_task(synthesize(question, all_rounds, cfg))
     spinner = Spinner("dots", text=Text(f" {synthesis_message()}", style="dim"))
-    with Live(spinner, console=err, refresh_per_second=10):
-        final_text, synthesis_results = await synthesize(question, all_rounds, cfg)
+    with Live(spinner, console=err, refresh_per_second=10) as live:
+        while not task.done():
+            spinner.text = Text(f" {synthesis_message()}", style="dim")
+            live.update(spinner)
+            await asyncio.sleep(4)
+    final_text, synthesis_results = task.result()
 
     return all_rounds, final_text, synthesis_results
