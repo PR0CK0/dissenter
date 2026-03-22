@@ -10,7 +10,8 @@ All notable changes to this project are documented here.
 ### Changed
 - **Round counter** — `Round N of M` now correctly counts the injected critique round (e.g. `Round 2 of 3: critique` with `--deep`).
 - **Synthesis spinner** — animated dots spinner shown while the chairman is writing, replacing the blank pause.
-- **Clickable output links** — switched to `Path.as_uri()` (`file:///...`) for proper OSC 8 hyperlinks in supported terminals.
+- **Synthesis messages** — random thematic message shown in the spinner while the chairman writes (same pattern as Ctrl+C exit messages).
+- **Output paths** — plain paths printed after each run, no link markup (OSC 8 hyperlinks not supported in macOS Terminal.app).
 - README updated with `--deep` flag in the `ask` command table and roadmap checked off.
 
 ---

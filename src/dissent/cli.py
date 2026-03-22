@@ -247,8 +247,8 @@ def ask(
 
     err.print()
     err.print(Rule("[bold green]Done[/bold green]"))
-    err.print(f"  [green]Decision :[/green] [link={abs_file.as_uri()}]{abs_file}[/link]")
-    err.print(f"  [dim]Run dir  : [link={abs_dir.as_uri()}]{abs_dir}[/link][/dim]")
+    err.print(f"  [green]Decision :[/green] {abs_file}")
+    err.print(f"  [dim]Run dir  : {abs_dir}[/dim]")
     err.print()
 
 
@@ -466,7 +466,8 @@ async def _main(question: str, cfg: DissentConfig, deep: bool = False):
     err.print(Rule("[dim]synthesizing[/dim]", style="dim"))
     err.print()
 
-    spinner = Spinner("dots", text=Text(" Chairman is writing the decision...", style="dim"))
+    from .wizard import synthesis_message
+    spinner = Spinner("dots", text=Text(f" {synthesis_message()}", style="dim"))
     with Live(spinner, console=err, refresh_per_second=10):
         final_text, synthesis_results = await synthesize(question, all_rounds, cfg)
 

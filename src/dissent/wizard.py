@@ -37,6 +37,26 @@ _DEBATE_ROLES = [
 ]
 
 # Curated cloud model suggestions shown in autocomplete
+_SYNTHESIS_MESSAGES = [
+    "The chairman is deliberating...",
+    "Weighing the dissent...",
+    "The panel has argued. Now one must decide.",
+    "Sifting signal from disagreement...",
+    "The chairman considers all sides...",
+    "Rendering a verdict from the chaos...",
+    "Consensus was not found. A decision will be.",
+    "The debate ends. The synthesis begins.",
+    "Reading the room...",
+    "Drawing conclusions from contested ground...",
+    "The chairman speaks last.",
+    "Turning disagreement into direction...",
+]
+
+
+def synthesis_message() -> str:
+    return random.choice(_SYNTHESIS_MESSAGES)
+
+
 _EXIT_MESSAGES = [
     "The dissent stands unresolved.",
     "No consensus reached. The question endures.",
