@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [1.6.0] — 2026-03-26
+
+### Added
+- **`dissenter --version` / `-v`** — prints the installed version and exits.
+- **Uniform command headers** — every command (`ask`, `init`, `history`, `clear`, `uninstall`, `models`, `show`) now opens with `dissenter vX.Y.Z — <command>` rendered as a rule line.
+
+### Changed
+- **Wizard environment panel** — title changed from `dissenter init` to `environment` (dim grey) for cleaner visual hierarchy.
+- **README** — `dissenter init` description updated to reflect arrow-key select throughout (no autocomplete); config naming behaviour documented; auto-save to SQLite called out explicitly; `--deep` moved from roadmap to Done; academic foundations reference fixed; clickable-link language removed; `--version` documented.
+
+---
+
 ## [1.5.0] — 2026-03-26
 
 ### Added

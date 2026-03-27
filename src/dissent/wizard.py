@@ -324,7 +324,7 @@ def run_wizard(output_path: Path, force: bool, save_name: str | None, console: C
     else:
         env_lines.append("  [dim]✗ Ollama   not found or no models installed[/dim]")
 
-    console.print(Panel("\n".join(env_lines), title="[bold]dissenter init[/bold]", expand=False))
+    console.print(Panel("\n".join(env_lines), title="[dim]environment[/dim]", expand=False))
     console.print()
 
     # If only the example exists, offer a quick copy instead of full wizard

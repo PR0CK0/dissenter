@@ -200,6 +200,8 @@ dissenter ask "..." --config dissenter-test.toml
 
 ## Commands
 
+`dissenter --version` (or `-v`) prints the installed version.
+
 ### `dissenter ask`
 
 Run a debate and save the decision.
@@ -228,7 +230,7 @@ Every run saves a `config.toml` snapshot in the run directory for exact re-runs.
 
 ### `dissenter init`
 
-Interactive config wizard. Uses arrow-key selection and model autocomplete. Only shows models with detected credentials (installed Ollama models + cloud providers where a CLI or API key is found).
+Interactive config wizard. Uses arrow-key selection throughout — model list is credential-aware (only shows installed Ollama models and cloud providers where a CLI or API key is detected). Prompts for a config name upfront: leave blank for a timestamped filename (`dissenter_20260326_143022.toml`), or type a name (`fast` → `dissenter_fast.toml`).
 
 | Flag | Description |
 |------|-------------|
@@ -266,7 +268,7 @@ Show the current config as a tree (rounds, models, roles, auth).
 
 ### `dissenter history`
 
-Browse and search past decisions stored in the local SQLite database.
+Browse and search past decisions. Every `dissenter ask` run is automatically saved to a local SQLite database — no flags needed.
 
 | Flag | Description |
 |------|-------------|
@@ -541,7 +543,7 @@ decisions/
         anthropic_claude-opus-4-6__chairman.md
 ```
 
-The decision file path is printed as a clickable link at the end of each run. The ADR follows a structured format: Context, Consensus, Disagreements, Options table, Decision, Consequences, Mitigations, Open Questions.
+The decision file path is printed at the end of each run. The ADR follows a structured format: Context, Consensus, Disagreements, Options table, Decision, Consequences, Mitigations, Open Questions.
 
 ---
 
@@ -583,7 +585,7 @@ dissenter ask "Should I use Redis or Postgres for session storage?" --config dis
 | Single-file config | ✓ | ✗ | partial | ✗ | ✗ |
 | Per-model API key override | ✓ | ✗ | ✗ | ✗ | ✗ |
 | `uv tool install` | ✓ | ✗ | partial | ✗ | ✗ |
-| Peer critique round | roadmap | partial⁵ | ✗ | ✓⁶ | ✗ |
+| Peer critique round (`--deep`) | ✓ | partial⁵ | ✗ | ✓⁶ | ✗ |
 
 *¹ llm-consortium retries up to 3× when arbiter confidence < 0.8 — iteration toward convergence, not debate.*
 *² consilium has configurable `--rounds N` in `discuss`/`socratic` modes.*
@@ -597,7 +599,7 @@ dissenter ask "Should I use Redis or Postgres for session storage?" --config dis
 ## Academic foundations
 
 - **Mixture of Agents** (arXiv 2406.04692, TogetherAI, June 2024) — the canonical proposer→aggregator architecture. dissenter is a multi-layer MoA with adversarial role differentiation on the proposer layer.
-- **ICE: Iterative Critique and Ensemble** (medrxiv, December 2024) — mutual critique between models before synthesis yields +7–45% accuracy on hard benchmarks. Basis for the planned `--deep` mode.
+- **ICE: Iterative Critique and Ensemble** (medrxiv, December 2024) — mutual critique between models before synthesis yields +7–45% accuracy on hard benchmarks. Basis for the `--deep` flag.
 - **LLM Ensemble Survey** (arXiv 2502.18036, February 2025) — taxonomy of ensemble methods; identifies prompt diversity as the strongest lever.
 - **Rethinking MoA** (OpenReview 2025) — finds diverse *framing* of the same question outperforms diverse *models* asked the same way. Direct justification for role-differentiated prompting.
 
@@ -614,14 +616,15 @@ dissenter ask "Should I use Redis or Postgres for session storage?" --config dis
 - [x] SQLite decision history — `dissenter history` / `dissenter clear`
 - [x] Named config presets (`--save <name>`, `--config <name>`)
 - [x] `dissenter init --auto` — non-interactive Ollama config generation with RAM budgeting
-- [x] Questionary wizard — arrow-key role selection, credential-aware model list
+- [x] Questionary wizard — arrow-key selection throughout, credential-aware model list, timestamped/named config output
 - [x] Ollama RAM estimation and warnings before running
 - [x] Config snapshot per run for exact reproducibility
 - [x] `uv tool install` / `just global-install` — global PATH install
 - [x] `dissenter uninstall` — full app data removal
+- [x] `--deep` flag: peer critique round (ICE paper, +7–45% accuracy on hard benchmarks)
+- [x] Automated versioning via `hatch-vcs` — version derived from git tag at build time
 
 **Planned:**
-- [x] `--deep` flag: peer critique round (ICE paper, +7–45% accuracy on hard benchmarks)
 - [ ] Disagreement classifier: factual vs. trade-off vs. context-dependent
 - [ ] Confidence scoring: each model rates certainty and states what would change its answer
 - [ ] Dynamic role inference: infer relevant roles from question type (security, performance, cost, maintainability)

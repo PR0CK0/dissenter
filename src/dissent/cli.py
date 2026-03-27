@@ -37,6 +37,24 @@ err = Console(stderr=True)
 _DEFAULT_DEBATE_ROLES = ["skeptic", "contrarian", "pragmatist", "devil's advocate", "analyst"]
 
 
+def _header(cmd: str) -> None:
+    err.print()
+    err.print(Rule(f"[bold]dissenter[/bold] [dim]v{_VERSION} — {cmd}[/dim]"))
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        out.print(f"dissenter v{_VERSION}")
+        raise typer.Exit()
+
+
+@app.callback()
+def _app_callback(
+    version: bool = typer.Option(False, "--version", "-v", is_eager=True, callback=_version_callback, help="Show version and exit"),
+) -> None:
+    pass
+
+
 # ── Config builders for inline flags ─────────────────────────────────────────
 
 def _config_from_flags(
@@ -154,8 +172,7 @@ def ask(
         raise typer.Exit(1)
 
     total_models = sum(len(r.active_models) for r in cfg.rounds)
-    err.print()
-    err.print(Rule(f"[bold]dissenter[/bold] [dim]v{_VERSION}[/dim]"))
+    _header("ask")
     err.print(f"  [dim]Question:[/dim] {question}")
     err.print(f"  [dim]Rounds  :[/dim] {len(cfg.rounds)}{' + critique' if deep else ''}")
     err.print(f"  [dim]Models  :[/dim] {total_models} across all rounds")
@@ -270,6 +287,7 @@ def init(
       dissenter init --auto --memory 8       # fit models within 8 GB per round
       dissenter init --auto --rounds 2 --memory 16 --save deep
     """
+    _header("init")
     from .wizard import run_auto_wizard, run_wizard
     if auto:
         run_auto_wizard(output, save, rounds, memory, err)
@@ -283,6 +301,7 @@ def history(
     limit: int = typer.Option(20, "--limit", "-n", help="Max results to show"),
 ) -> None:
     """Browse past decisions stored in the local database."""
+    _header("history")
     from .db import get_run, list_runs
 
     runs = list_runs(limit=limit, search=search)
@@ -332,6 +351,7 @@ def clear(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ) -> None:
     """Delete all run history from the local database."""
+    _header("clear")
     from .db import get_db_path
     db_path = get_db_path()
     if not db_path.exists():
@@ -348,6 +368,7 @@ def uninstall(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ) -> None:
     """Remove all dissenter data (database and config presets) from this machine."""
+    _header("uninstall")
     import shutil
     from platformdirs import user_config_dir, user_data_dir
 
@@ -382,8 +403,7 @@ def uninstall(
 @app.command()
 def models() -> None:
     """Show detected local models, CLI tools, and API key status."""
-    from rich.table import Table
-
+    _header("models")
     ollama = detect_ollama_models()
     clis = detect_clis()
     api_keys = detect_api_keys()
@@ -424,6 +444,7 @@ def show(
     config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
 ) -> None:
     """Show the current configuration — rounds, models, roles."""
+    _header("show")
     try:
         cfg = load_config(config)
     except FileNotFoundError as e:
