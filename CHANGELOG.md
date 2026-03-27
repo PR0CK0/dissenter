@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [1.7.1] — 2026-03-27
+## [2.0.0] — 2026-03-27
 
 ### Changed
 - **`dissenter show` → `dissenter config`** — more explicit about what it does; avoids confusion with `history`.
