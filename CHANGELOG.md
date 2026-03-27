@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [2.0.2] — 2026-03-27
+
+### Changed
+- **`--help` header** — `dissenter vX.Y.Z — <cmd>` rule line now appears at the top of every `--help` output, matching the runtime command headers.
+
+---
+
 ## [2.0.1] — 2026-03-27
 
 ### Changed

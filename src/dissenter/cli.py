@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
@@ -19,6 +20,12 @@ try:
     _VERSION = _pkg_version("dissenter")
 except Exception:
     _VERSION = "?"
+
+# Print the version rule before typer renders --help output
+if "--help" in sys.argv or "-h" in sys.argv:
+    _help_cmd = next((a for a in sys.argv[1:] if not a.startswith("-")), "help")
+    Console(stderr=True).print(Rule(f"[bold]dissenter[/bold] [dim]v{_VERSION} — {_help_cmd}[/dim]"))
+
 from .detect import (
     KNOWN_PROVIDERS, detect_api_keys, detect_clis, detect_ollama_models,
     estimate_ollama_memory, infer_auth,
