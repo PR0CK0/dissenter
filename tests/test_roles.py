@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dissent.roles import get_prompt, load_roles
+from dissenter.roles import get_prompt, load_roles
 
 EXPECTED_ROLES = [
     "devil's advocate",

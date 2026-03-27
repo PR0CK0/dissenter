@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from dissent.config import DissentConfig, ModelConfig, RoundConfig
-from dissent.runner import ModelResult, RoundResult
-from dissent.synthesis import _build_confidence_table, _format_all_rounds, synthesize
+from dissenter.config import DissentConfig, ModelConfig, RoundConfig
+from dissenter.runner import ModelResult, RoundResult
+from dissenter.synthesis import _build_confidence_table, _format_all_rounds, synthesize
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +258,7 @@ async def test_synthesize_passes_confidence_into_prompt(single_arbiter_cfg):
         captured_prompts.append(kwargs["messages"][0]["content"])
         return _mock_response("ADR content here.")
 
-    with patch("dissent.synthesis.litellm.acompletion", new_callable=AsyncMock) as mock_call:
+    with patch("dissenter.synthesis.litellm.acompletion", new_callable=AsyncMock) as mock_call:
         mock_call.side_effect = fake_completion
         await synthesize("Which database?", [debate_rr, final_rr], single_arbiter_cfg)
 
@@ -295,7 +295,7 @@ async def test_synthesize_no_confidence_data_fallback(single_arbiter_cfg):
         captured_prompts.append(kwargs["messages"][0]["content"])
         return _mock_response("ADR content here.")
 
-    with patch("dissent.synthesis.litellm.acompletion", new_callable=AsyncMock) as mock_call:
+    with patch("dissenter.synthesis.litellm.acompletion", new_callable=AsyncMock) as mock_call:
         mock_call.side_effect = fake_completion
         await synthesize("Which database?", [debate_rr, final_rr], single_arbiter_cfg)
 

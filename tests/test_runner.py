@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from dissent.config import DissentConfig, ModelConfig, RoundConfig
-from dissent.runner import ModelResult, RoundResult, run_round, _build_prior_context, _parse_confidence
+from dissenter.config import DissentConfig, ModelConfig, RoundConfig
+from dissenter.runner import ModelResult, RoundResult, run_round, _build_prior_context, _parse_confidence
 
 
 def _mock_response(content: str) -> MagicMock:
@@ -32,7 +32,7 @@ async def test_run_round_all_succeed(role_prompts):
     ]
     round_cfg = RoundConfig(name="debate", models=models)
 
-    with patch("dissent.runner.litellm.acompletion", new_callable=AsyncMock) as mock_call:
+    with patch("dissenter.runner.litellm.acompletion", new_callable=AsyncMock) as mock_call:
         mock_call.return_value = _mock_response("some response text")
         result = await run_round(round_cfg, 0, "Test question?", [], role_prompts)
 
@@ -46,7 +46,7 @@ async def test_run_round_error_captured(role_prompts):
     models = [ModelConfig(id="bad/model", role="skeptic", timeout=10)]
     round_cfg = RoundConfig(name="test", models=models)
 
-    with patch("dissent.runner.litellm.acompletion", new_callable=AsyncMock) as mock_call:
+    with patch("dissenter.runner.litellm.acompletion", new_callable=AsyncMock) as mock_call:
         mock_call.side_effect = Exception("API error: 401")
         result = await run_round(round_cfg, 0, "Test?", [], role_prompts)
 
@@ -73,7 +73,7 @@ async def test_run_round_includes_prior_context(role_prompts):
         captured_prompts.append(kwargs["messages"][0]["content"])
         return _mock_response("final answer")
 
-    with patch("dissent.runner.litellm.acompletion", new_callable=AsyncMock) as mock_call:
+    with patch("dissenter.runner.litellm.acompletion", new_callable=AsyncMock) as mock_call:
         mock_call.side_effect = fake_completion
         await run_round(round_cfg, 1, "Test?", [prior], role_prompts)
 
@@ -223,7 +223,7 @@ async def test_run_round_confidence_block_populated(role_prompts):
     models = [ModelConfig(id="ollama/mistral", role="skeptic", timeout=10)]
     round_cfg = RoundConfig(name="debate", models=models)
 
-    with patch("dissent.runner.litellm.acompletion", new_callable=AsyncMock) as mock_call:
+    with patch("dissenter.runner.litellm.acompletion", new_callable=AsyncMock) as mock_call:
         mock_call.return_value = _mock_response(response_with_confidence)
         result = await run_round(round_cfg, 0, "Which DB?", [], role_prompts)
 
@@ -240,7 +240,7 @@ async def test_run_round_no_confidence_block_leaves_fields_none(role_prompts):
     models = [ModelConfig(id="ollama/mistral", role="skeptic", timeout=10)]
     round_cfg = RoundConfig(name="debate", models=models)
 
-    with patch("dissent.runner.litellm.acompletion", new_callable=AsyncMock) as mock_call:
+    with patch("dissenter.runner.litellm.acompletion", new_callable=AsyncMock) as mock_call:
         mock_call.return_value = _mock_response("Plain response without confidence.")
         result = await run_round(round_cfg, 0, "Which DB?", [], role_prompts)
 

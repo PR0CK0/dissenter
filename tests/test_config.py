@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from dissent.config import DissentConfig, ModelConfig, RoundConfig, assign_random_roles
+from dissenter.config import DissentConfig, ModelConfig, RoundConfig, assign_random_roles
 
 
 def _make_model(**kwargs) -> dict:

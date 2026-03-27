@@ -42,13 +42,13 @@ Changelog = "https://github.com/PR0CK0/dissenter/blob/master/CHANGELOG.md"
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
 
 [project.scripts]
-dissenter = "dissent.cli:app"
+dissenter = "dissenter.cli:app"
 
 [tool.hatch.version]
 source = "vcs"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/dissent"]
+packages = ["src/dissenter"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from dissent.db import get_run, init_db, list_runs, save_run
+from dissenter.db import get_run, init_db, list_runs, save_run
 
 
 def _round(index: int, name: str, outputs: list | None = None) -> dict:

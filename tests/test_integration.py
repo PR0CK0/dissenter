@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from dissent.config import DissentConfig, ModelConfig, RoundConfig
-from dissent.runner import run_all_rounds
-from dissent.synthesis import synthesize
+from dissenter.config import DissentConfig, ModelConfig, RoundConfig
+from dissenter.runner import run_all_rounds
+from dissenter.synthesis import synthesize
 
 
 def _mock_response(content: str) -> MagicMock:
@@ -50,8 +50,8 @@ async def test_full_pipeline_single_arbiter(two_round_cfg, tmp_path):
         call_count += 1
         return _mock_response(f"Response {call_count}: some thoughtful answer about the topic")
 
-    with patch("dissent.runner.litellm.acompletion", new_callable=AsyncMock) as mock_runner, \
-         patch("dissent.synthesis.litellm.acompletion", new_callable=AsyncMock) as mock_synth:
+    with patch("dissenter.runner.litellm.acompletion", new_callable=AsyncMock) as mock_runner, \
+         patch("dissenter.synthesis.litellm.acompletion", new_callable=AsyncMock) as mock_synth:
         mock_runner.side_effect = fake_completion
         mock_synth.return_value = _mock_response("# ADR: Final Decision\n\nThe answer is clear.")
 
@@ -72,8 +72,8 @@ async def test_full_pipeline_output_files(two_round_cfg, tmp_path):
     async def fake_completion(**kwargs):
         return _mock_response("Some model output text here")
 
-    with patch("dissent.runner.litellm.acompletion", new_callable=AsyncMock) as mock_runner, \
-         patch("dissent.synthesis.litellm.acompletion", new_callable=AsyncMock) as mock_synth:
+    with patch("dissenter.runner.litellm.acompletion", new_callable=AsyncMock) as mock_runner, \
+         patch("dissenter.synthesis.litellm.acompletion", new_callable=AsyncMock) as mock_synth:
         mock_runner.side_effect = fake_completion
         mock_synth.return_value = _mock_response("# ADR: Test\n\nDecision made.")
 
@@ -85,7 +85,7 @@ async def test_full_pipeline_output_files(two_round_cfg, tmp_path):
 
 @pytest.mark.asyncio
 async def test_all_models_fail_raises(two_round_cfg):
-    with patch("dissent.runner.litellm.acompletion", new_callable=AsyncMock) as mock_call:
+    with patch("dissenter.runner.litellm.acompletion", new_callable=AsyncMock) as mock_call:
         mock_call.side_effect = Exception("connection refused")
 
         with pytest.raises(RuntimeError, match="All models failed"):
