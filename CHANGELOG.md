@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here.
 
+## [1.5.0] — 2026-03-26
+
+### Added
+- **Automated versioning** — version is now derived from the git tag at build time via `hatch-vcs`. No more manual `pyproject.toml` bumps — tag `vX.Y.Z`, the wheel gets that version automatically.
+
+### Changed
+- **Wizard: config name upfront** — asked before rounds collection. Leave blank for a timestamp-based filename (`dissenter_20260326_143022.toml`), or type a name (`test` → `dissenter_test.toml`).
+- **Wizard: existing config conflict** — replaced yes/no overwrite prompt with a numbered 4-option select: `1. Use existing`, `2. Create new named config`, `3. Overwrite with this new config`, `4. Exit`.
+- **Wizard: save step** — replaced yes/no confirm with a 3-option select: `Save → <filename>`, `Redo wizard`, `Exit without saving`. Redo loops back to the start of rounds collection.
+- **Wizard: role selector** — removed `default` highlight that caused two competing visual indicators (box + cursor arrow). Cursor only.
+- **Wizard: exit and synthesis messages** — all rendered in dim grey for consistent styling.
+- **Cleanup** — removed leftover `llm-ensemble` era files: `ensemble` binary, `ensemble.toml`, `src/ensemble/`, `test-ollama.sh`.
+
+---
+
 ## [1.4.0] — 2026-03-22
 
 ### Added

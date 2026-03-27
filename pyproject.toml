@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "dissenter"
-version = "1.4.0"
+dynamic = ["version"]
 description = "Multi-LLM debate engine for complex questions — surface disagreement, synthesize decisions"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -43,6 +43,9 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
 
 [project.scripts]
 dissenter = "dissent.cli:app"
+
+[tool.hatch.version]
+source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/dissent"]

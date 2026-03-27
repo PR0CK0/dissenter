@@ -126,7 +126,7 @@ def _q(prompt) -> str:
     except KeyboardInterrupt:
         result = None
     if result is None:
-        print(f"\n  {exit_message()}\n")
+        Console().print(f"\n  [dim]{exit_message()}[/dim]\n")
         raise typer.Exit(0)
     return result
 
@@ -158,11 +158,9 @@ def _collect_model(
     model_id = selected_model
 
     role_choices = _ALL_ROLES + ["[ custom... ]"]
-    default_role_q = default_role if default_role in _ALL_ROLES else _ALL_ROLES[0]
     selected_role = _q(questionary.select(
         "    Role",
         choices=role_choices,
-        default=default_role_q,
     ))
     if selected_role == "[ custom... ]":
         selected_role = _q(questionary.text("    Custom role name"))
@@ -349,72 +347,114 @@ def run_wizard(output_path: Path, force: bool, save_name: str | None, console: C
         preset_dir.mkdir(parents=True, exist_ok=True)
         output_path = preset_dir / f"{save_name}.toml"
         console.print(f"  Saving preset [bold]{save_name}[/bold] → {output_path}\n")
-    elif output_path.exists() and not force:
-        console.print(
-            f"  [yellow]⚠[/yellow]  {output_path} already exists.\n"
-            "  Use [bold]--force[/bold] to overwrite it, or "
-            "[bold]--save <name>[/bold] to create a named preset instead.\n"
-        )
-        if not _q(questionary.confirm("Overwrite existing file?", default=False)):
+    else:
+        from datetime import datetime
+
+        def _ask_name() -> Path:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            name_input = _q(questionary.text(
+                "Config name (leave blank for timestamp)",
+                default="",
+            )).strip()
+            return Path(f"dissenter_{name_input}.toml" if name_input else f"dissenter_{ts}.toml")
+
+        existing = Path("dissenter.toml")
+        if existing.exists() and not force:
+            console.print(f"  [dim]dissenter.toml detected.[/dim]\n")
+            conflict_action = _q(questionary.select(
+                "  What would you like to do?",
+                choices=[
+                    "1. Use existing dissenter.toml",
+                    "2. Create a new named config",
+                    "3. Overwrite dissenter.toml with this new config",
+                    "4. Exit",
+                ],
+            ))
+            if conflict_action.startswith("1."):
+                console.print(f"\n[green]✓[/green] Using [bold]dissenter.toml[/bold] — run [bold]dissenter ask \"your question\"[/bold] to get started.")
+                raise typer.Exit(0)
+            elif conflict_action.startswith("4."):
+                Console().print(f"\n  [dim]{exit_message()}[/dim]\n")
+                raise typer.Exit(0)
+            elif conflict_action.startswith("3."):
+                output_path = existing
+            else:
+                output_path = _ask_name()
+        else:
+            output_path = _ask_name()
+
+    while True:
+        n_debate = int(_q(questionary.text("Debate rounds (not counting final)", default="1")))
+
+        rounds_data: list[dict] = []
+
+        for ri in range(n_debate):
+            console.print(f"\n[bold]── Round {ri + 1} ──[/bold]")
+            name = _q(questionary.text("  Name", default="debate" if ri == 0 else f"round_{ri + 1}"))
+            n_models = int(_q(questionary.text("  How many models?", default="2")))
+            models = [
+                _collect_model(f"Model {mi + 1}", clis, ollama_models, _DEBATE_ROLES[mi % len(_DEBATE_ROLES)], console, api_keys)
+                for mi in range(n_models)
+            ]
+            rounds_data.append({"name": name, "models": models})
+
+        console.print("\n[bold]── Final Round ──[/bold]")
+        final_type_choices = [
+            "chairman  — single model writes the final decision",
+            "dual      — conservative vs liberal + a combiner model",
+        ]
+        final_type = _q(questionary.select("  Type", choices=final_type_choices)).split()[0]
+        final_name = _q(questionary.text("  Name", default="final"))
+
+        if final_type == "dual":
+            con = _collect_model("Conservative model", clis, ollama_models, "conservative", console, api_keys)
+            con["role"] = "conservative"
+            lib = _collect_model("Liberal model", clis, ollama_models, "liberal", console, api_keys)
+            lib["role"] = "liberal"
+
+            _CUSTOM = "[ type custom ID... ]"
+            cloud_choices = _available_cloud_models(clis, api_keys)
+            combine_choices = [f"ollama/{m}" for m in ollama_models] + cloud_choices + [_CUSTOM]
+            combine = _q(questionary.select("  Combine model ID", choices=combine_choices))
+            if combine == _CUSTOM:
+                combine = _q(questionary.text("  Enter combine model ID"))
+            combine_timeout = int(_q(questionary.text("  Combine timeout (seconds)", default="60")))
+            rounds_data.append({
+                "name": final_name,
+                "models": [con, lib],
+                "combine_model": combine,
+                "combine_timeout": combine_timeout,
+            })
+        else:
+            chair = _collect_model("Chairman model", clis, ollama_models, "chairman", console, api_keys)
+            chair["role"] = "chairman"
+            rounds_data.append({"name": final_name, "models": [chair]})
+
+        toml_content = _render_toml(rounds_data, "decisions")
+        console.print("\n[bold]── Preview ──[/bold]\n")
+        console.print(toml_content)
+
+        _OPT_REDO = "Redo wizard"
+        _OPT_EXIT = "Exit without saving"
+        action = _q(questionary.select(
+            "What would you like to do?",
+            choices=[f"Save  →  {output_path}", _OPT_REDO, _OPT_EXIT],
+        ))
+
+        if action == _OPT_EXIT:
+            Console().print(f"\n  [dim]{exit_message()}[/dim]\n")
             raise typer.Exit(0)
 
-    n_debate = int(_q(questionary.text("Debate rounds (not counting final)", default="1")))
+        if action == _OPT_REDO:
+            console.print("\n[dim]Restarting wizard...[/dim]\n")
+            continue
 
-    rounds_data: list[dict] = []
-
-    for ri in range(n_debate):
-        console.print(f"\n[bold]── Round {ri + 1} ──[/bold]")
-        name = _q(questionary.text("  Name", default="debate" if ri == 0 else f"round_{ri + 1}"))
-        n_models = int(_q(questionary.text("  How many models?", default="2")))
-        models = [
-            _collect_model(f"Model {mi + 1}", clis, ollama_models, _DEBATE_ROLES[mi % len(_DEBATE_ROLES)], console, api_keys)
-            for mi in range(n_models)
-        ]
-        rounds_data.append({"name": name, "models": models})
-
-    console.print("\n[bold]── Final Round ──[/bold]")
-    final_type_choices = [
-        "chairman  — single model writes the final decision",
-        "dual      — conservative vs liberal + a combiner model",
-    ]
-    final_type = _q(questionary.select("  Type", choices=final_type_choices)).split()[0]
-    final_name = _q(questionary.text("  Name", default="final"))
-
-    if final_type == "dual":
-        con = _collect_model("Conservative model", clis, ollama_models, "conservative", console, api_keys)
-        con["role"] = "conservative"
-        lib = _collect_model("Liberal model", clis, ollama_models, "liberal", console, api_keys)
-        lib["role"] = "liberal"
-
-        _CUSTOM = "[ type custom ID... ]"
-        cloud_choices = _available_cloud_models(clis, api_keys)
-        combine_choices = [f"ollama/{m}" for m in ollama_models] + cloud_choices + [_CUSTOM]
-        combine = _q(questionary.select("  Combine model ID", choices=combine_choices))
-        if combine == _CUSTOM:
-            combine = _q(questionary.text("  Enter combine model ID"))
-        combine_timeout = int(_q(questionary.text("  Combine timeout (seconds)", default="60")))
-        rounds_data.append({
-            "name": final_name,
-            "models": [con, lib],
-            "combine_model": combine,
-            "combine_timeout": combine_timeout,
-        })
-    else:
-        chair = _collect_model("Chairman model", clis, ollama_models, "chairman", console, api_keys)
-        chair["role"] = "chairman"
-        rounds_data.append({"name": final_name, "models": [chair]})
-
-    toml_content = _render_toml(rounds_data, "decisions")
-    console.print("\n[bold]── Preview ──[/bold]\n")
-    console.print(toml_content)
-
-    if _q(questionary.confirm(f"Save to {output_path}?", default=True)):
+        # Save
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(toml_content, encoding="utf-8")
         console.print(f"\n[green]✓[/green] Saved [bold]{output_path}[/bold]")
         if save_name:
             console.print(f"  Run [bold]dissenter ask \"your question\" --config {save_name}[/bold]")
         else:
-            console.print("  Run [bold]dissenter ask \"your question\"[/bold] to get started.")
-    else:
-        console.print("[dim]Cancelled.[/dim]")
+            console.print(f"  Run [bold]dissenter ask \"your question\" --config {output_path}[/bold]")
+        break
