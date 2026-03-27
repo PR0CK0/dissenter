@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [1.7.1] — 2026-03-27
+
+### Changed
+- **`dissenter show` → `dissenter config`** — more explicit about what it does; avoids confusion with `history`.
+- **`dissenter clear` removed** — absorbed into `dissenter history --clear` (`--yes` to skip prompt). Clears history from the same place you browse it.
+- **`dissenter uninstall`** — help text now explicitly states it does not remove the package, and shows the correct `uv tool uninstall dissenter` command for that.
+- **`--help` improvements** — all commands now include concrete usage examples in their help text (visible via `dissenter <cmd> --help`).
+
+---
+
 ## [1.7.0] — 2026-03-26
 
 ### Added

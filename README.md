@@ -256,13 +256,13 @@ Show detected Ollama models, CLI tool paths, and API key status. No flags.
 
 ---
 
-### `dissenter show`
+### `dissenter config`
 
-Show the current config as a tree (rounds, models, roles, auth).
+Inspect the active config as a tree (rounds, models, roles, auth). Useful for verifying a config before running a debate.
 
 | Flag | Description |
 |------|-------------|
-| `--config <path\|name>` | Config to display (default: `dissenter.toml`) |
+| `--config <path\|name>` | Config to inspect (default: `dissenter.toml`) |
 
 ---
 
@@ -272,8 +272,10 @@ Browse and search past decisions. Every `dissenter ask` run is automatically sav
 
 | Flag | Description |
 |------|-------------|
-| _(no flags)_ | Numbered table of all past runs — open any by number |
-| `--search <term>` | Filter by keyword in question or decision text |
+| `--search <term>`, `-s` | Filter by keyword in question or decision text |
+| `--limit <n>`, `-n` | Max rows to show (default: 20) |
+| `--clear` | Delete all run history (prompts for confirmation) |
+| `--yes`, `-y` | Skip confirmation when using `--clear` |
 
 Database location:
 - Mac: `~/Library/Application Support/dissenter/dissenter.db`
@@ -282,15 +284,13 @@ Database location:
 
 ---
 
-### `dissenter clear`
-
-Delete all run history from the database. Prompts for confirmation. Does not remove config presets.
-
----
-
 ### `dissenter uninstall`
 
-Remove all app data from this machine (database + config presets). Prints the command to fully remove the package afterwards.
+Remove all app data from this machine (database + config presets). Does not remove the package itself — for that, run `uv tool uninstall dissenter`.
+
+| Flag | Description |
+|------|-------------|
+| `--yes`, `-y` | Skip confirmation prompt |
 
 ---
 
@@ -613,7 +613,7 @@ dissenter ask "Should I use Redis or Postgres for session storage?" --config dis
 - [x] Dual-arbiter final round (conservative + liberal + combine_model)
 - [x] CLI session auth (`auth = "cli"`) — use installed CLIs without API keys
 - [x] Same model, different roles in a single round
-- [x] SQLite decision history — `dissenter history` / `dissenter clear`
+- [x] SQLite decision history — `dissenter history` / `dissenter history --clear`
 - [x] Named config presets (`--save <name>`, `--config <name>`)
 - [x] `dissenter init --auto` — non-interactive Ollama config generation with RAM budgeting
 - [x] Questionary wizard — arrow-key selection throughout, credential-aware model list, timestamped/named config output

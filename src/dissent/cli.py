@@ -143,7 +143,15 @@ def ask(
 ) -> None:
     """Run the full debate pipeline and synthesize a decision.
 
-    Config priority: --quick > --model/--chairman > --config / dissenter.toml
+    Config priority: --quick > --model/--chairman > --config > dissenter.toml
+
+    Examples:
+      dissenter ask "Should we use Kafka or a Postgres outbox?"
+      dissenter ask "..." --config fast                   # named preset
+      dissenter ask "..." --quick                         # auto-detect Ollama models
+      dissenter ask "..." --model ollama/mistral@skeptic --model ollama/phi3@pragmatist
+      dissenter ask "..." --deep                          # add mutual critique round
+      dissenter ask "..." --config decisions/20260321/config.toml  # exact re-run
     """
     try:
         if quick:
@@ -297,11 +305,37 @@ def init(
 
 @app.command()
 def history(
-    search: Optional[str] = typer.Option(None, "--search", "-s", help="Filter by keyword"),
-    limit: int = typer.Option(20, "--limit", "-n", help="Max results to show"),
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Filter by keyword in question or decision text"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Max rows to show (default: 20)"),
+    clear: bool = typer.Option(False, "--clear", help="Delete all run history from the database"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation when using --clear"),
 ) -> None:
-    """Browse past decisions stored in the local database."""
+    """Browse past decisions, or clear the history database.
+
+    Every `dissenter ask` run is saved automatically. Use this command to
+    browse, search, or open any past decision interactively.
+
+    Examples:
+      dissenter history                   # browse all past runs
+      dissenter history --search kafka    # filter by keyword
+      dissenter history --limit 5         # show only 5 most recent
+      dissenter history --clear           # delete all history (prompts first)
+      dissenter history --clear --yes     # delete without prompting
+    """
     _header("history")
+
+    if clear:
+        from .db import get_db_path
+        db_path = get_db_path()
+        if not db_path.exists():
+            out.print("[dim]No database found — nothing to clear.[/dim]")
+            return
+        if not yes:
+            typer.confirm(f"Delete all run history from {db_path}?", abort=True)
+        db_path.unlink()
+        out.print(f"[green]✓[/green] Cleared: {db_path}")
+        return
+
     from .db import get_run, list_runs
 
     runs = list_runs(limit=limit, search=search)
@@ -347,27 +381,19 @@ def history(
 
 
 @app.command()
-def clear(
-    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
-) -> None:
-    """Delete all run history from the local database."""
-    _header("clear")
-    from .db import get_db_path
-    db_path = get_db_path()
-    if not db_path.exists():
-        out.print("[dim]No database found — nothing to clear.[/dim]")
-        return
-    if not yes:
-        typer.confirm(f"Delete all run history from {db_path}?", abort=True)
-    db_path.unlink()
-    out.print(f"[green]✓[/green] Cleared: {db_path}")
-
-
-@app.command()
 def uninstall(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ) -> None:
-    """Remove all dissenter data (database and config presets) from this machine."""
+    """Remove all dissenter app data (database + config presets) from this machine.
+
+    Deletes the SQLite history database and any named config presets saved
+    under ~/.config/dissenter/. Does not remove the package itself — for
+    that, run: uv tool uninstall dissenter
+
+    Examples:
+      dissenter uninstall        # lists what will be deleted, then prompts
+      dissenter uninstall --yes  # skip confirmation
+    """
     _header("uninstall")
     import shutil
     from platformdirs import user_config_dir, user_data_dir
@@ -402,7 +428,14 @@ def uninstall(
 
 @app.command()
 def models() -> None:
-    """Show detected local models, CLI tools, and API key status."""
+    """Show detected local models, CLI tools, and API key env var status.
+
+    Useful for verifying what dissenter can see before running `dissenter init`
+    or `dissenter ask`.
+
+    Examples:
+      dissenter models
+    """
     _header("models")
     ollama = detect_ollama_models()
     clis = detect_clis()
@@ -440,13 +473,22 @@ def models() -> None:
 
 
 @app.command()
-def show(
-    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
+def config(
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path or named preset to inspect (default: dissenter.toml)"),
 ) -> None:
-    """Show the current configuration — rounds, models, roles."""
-    _header("show")
+    """Inspect the active config — rounds, models, roles, auth.
+
+    Loads and pretty-prints the configuration that `dissenter ask` would use,
+    as a tree. Useful for verifying a config before running a debate.
+
+    Examples:
+      dissenter config                        # inspect dissenter.toml in current dir
+      dissenter config --config fast          # inspect named preset
+      dissenter config --config path/to.toml  # inspect specific file
+    """
+    _header("config")
     try:
-        cfg = load_config(config)
+        cfg = load_config(config_path)
     except FileNotFoundError as e:
         err.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
