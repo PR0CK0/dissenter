@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [2.1.0] — 2026-03-27
+
+### Added
+- **Auto update check** — on every invocation, dissenter checks PyPI for a newer version in a background thread (non-blocking, cached for 24h). If an update is available, a `↑ vX.Y.Z available (uv tool upgrade dissenter)` notice appears under the command header. Dev/local builds are silently skipped.
+
+---
+
 ## [2.0.2] — 2026-03-27
 
 ### Changed

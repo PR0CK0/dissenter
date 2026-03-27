@@ -21,6 +21,11 @@ try:
 except Exception:
     _VERSION = "?"
 
+from .update import get_update_notice, start_update_check
+
+# Start update check in background immediately — result cached for 24h
+_update_thread = start_update_check()
+
 # Print the version rule before typer renders --help output
 if "--help" in sys.argv or "-h" in sys.argv:
     _help_cmd = next((a for a in sys.argv[1:] if not a.startswith("-")), "help")
@@ -47,6 +52,9 @@ _DEFAULT_DEBATE_ROLES = ["skeptic", "contrarian", "pragmatist", "devil's advocat
 def _header(cmd: str) -> None:
     err.print()
     err.print(Rule(f"[bold]dissenter[/bold] [dim]v{_VERSION} — {cmd}[/dim]"))
+    notice = get_update_notice(_VERSION)
+    if notice:
+        err.print(f"  [yellow]↑ {notice}[/yellow]")
 
 
 def _version_callback(value: bool) -> None:
