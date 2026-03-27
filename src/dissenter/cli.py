@@ -35,8 +35,8 @@ from .detect import (
     KNOWN_PROVIDERS, detect_api_keys, detect_clis, detect_ollama_models,
     estimate_ollama_memory, infer_auth,
 )
-from .runner import run_all_rounds
-from .synthesis import synthesize
+# runner and synthesis import litellm (~1s cold start) — lazy-loaded inside ask() only
+# so that models / history / config / init are instant
 
 app = typer.Typer(
     help="dissenter — multi-LLM debate engine for architectural decisions.",
@@ -207,6 +207,18 @@ def ask(
     if mem["warning"]:
         err.print(f"  [yellow]⚠  {mem['warning']}[/yellow]")
     err.print()
+
+    from .wizard import loading_message
+    from rich.spinner import Spinner
+    from rich.live import Live
+    from rich.text import Text
+
+    with Live(
+        Spinner("dots", text=Text(f" {loading_message()}", style="dim grey")),
+        console=err, refresh_per_second=10, transient=True,
+    ):
+        from .runner import run_all_rounds
+        from .synthesis import synthesize
 
     try:
         all_rounds, final_text, synthesis_results = asyncio.run(_main(question, cfg, deep))
@@ -536,6 +548,8 @@ async def _main(question: str, cfg: DissentConfig, deep: bool = False):
     from rich.live import Live
     from rich.spinner import Spinner
     from rich.text import Text
+    from .runner import run_all_rounds
+    from .synthesis import synthesize
 
     err.print(Rule("[dim]beginning debate[/dim]", style="dim"))
     all_rounds = await run_all_rounds(cfg, question, deep=deep)

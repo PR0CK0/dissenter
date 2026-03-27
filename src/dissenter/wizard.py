@@ -77,6 +77,24 @@ def exit_message() -> str:
     return random.choice(_EXIT_MESSAGES)
 
 
+_LOADING_MESSAGES = [
+    "Assembling the panel...",
+    "Convening the council...",
+    "Waking the models...",
+    "Gathering the dissenters...",
+    "Summoning the experts...",
+    "Preparing the chamber...",
+    "Loading the debate engine...",
+    "Briefing the panel...",
+    "Arranging the adversaries...",
+    "The debate will begin shortly...",
+]
+
+
+def loading_message() -> str:
+    return random.choice(_LOADING_MESSAGES)
+
+
 _CLOUD_MODELS_BY_PROVIDER: dict[str, list[str]] = {
     "anthropic": [
         "anthropic/claude-sonnet-4-6",

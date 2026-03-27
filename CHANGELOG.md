@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [2.1.1] — 2026-03-27
+
+### Fixed
+- **Startup latency** — `models`, `history`, `config`, `init` now start in ~0.1s instead of ~3s. `litellm` (~1s cold import) is now lazy-loaded inside `ask` only, since no other command needs it.
+
+### Added
+- **Loading spinner** — `ask` shows a dim grey spinner with a random thematic message ("Convening the council...", "Assembling the panel...", etc.) while `litellm` loads, before the debate begins.
+
+---
+
 ## [2.1.0] — 2026-03-27
 
 ### Added
