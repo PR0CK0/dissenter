@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [2.0.1] — 2026-03-27
+
+### Changed
+- **`src/dissent` → `src/dissenter`** — Python import path now matches the package name, CLI name, and PyPI name. Internal change only; no user-facing impact.
+
+---
+
 ## [2.0.0] — 2026-03-27
 
 ### Changed
