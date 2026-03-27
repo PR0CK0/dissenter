@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -43,7 +44,18 @@ Respond in this exact markdown structure:
 [Relevant ecosystem changes. Note if you have no web access.]
 
 Be direct, technical, and opinionated. Engineers will act on this.
+
+End your response with this exact block (required — do not skip):
+
+---CONFIDENCE---
+Score: [1-10]/10
+Would change if: [one sentence: the specific evidence, constraint, or new information that would flip your recommendation]
 """
+
+_CONFIDENCE_RE = re.compile(
+    r"---CONFIDENCE---\s*\nScore:\s*(\d{1,2})\s*/\s*10[^\n]*\nWould change if:\s*([^\n]+)",
+    re.IGNORECASE,
+)
 
 _PRIOR_CONTEXT_TEMPLATE = """\
 [Prior debate — Round {index}: "{name}"]
@@ -82,6 +94,21 @@ Now write a structured critique. Be direct and harsh where warranted.
 """
 
 
+def _parse_confidence(content: str) -> tuple[str, Optional[int], str]:
+    """Extract confidence block from model output.
+
+    Returns (clean_content, score_or_None, change_condition).
+    Strips the ---CONFIDENCE--- block from the returned content.
+    """
+    m = _CONFIDENCE_RE.search(content)
+    if not m:
+        return content, None, ""
+    score = min(10, max(1, int(m.group(1))))
+    change = m.group(2).strip()
+    clean = content[: m.start()].rstrip()
+    return clean, score, change
+
+
 @dataclass
 class ModelResult:
     model_id: str
@@ -90,6 +117,8 @@ class ModelResult:
     content: str = ""
     elapsed: float = 0.0
     error: Optional[str] = None
+    confidence_score: Optional[int] = None
+    confidence_change: str = ""
 
     @property
     def success(self) -> bool:
@@ -216,7 +245,7 @@ async def _query_model(
 
     try:
         if cfg.auth == "cli":
-            result.content = await asyncio.wait_for(
+            raw = await asyncio.wait_for(
                 _query_model_cli(cfg, prompt),
                 timeout=cfg.timeout,
             )
@@ -232,7 +261,8 @@ async def _query_model(
                 litellm.acompletion(**kwargs),
                 timeout=cfg.timeout,
             )
-            result.content = response.choices[0].message.content or ""
+            raw = response.choices[0].message.content or ""
+        result.content, result.confidence_score, result.confidence_change = _parse_confidence(raw)
         result.elapsed = time.monotonic() - start
     except asyncio.TimeoutError:
         result.error = f"timed out after {cfg.timeout}s"
@@ -273,7 +303,8 @@ def _status_table(
         elif result.error:
             status = Text(f"✗ {result.error[:35]}", style="red")
         else:
-            status = Text(f"✓  ~{result.word_count} words", style="green")
+            conf = f" · {result.confidence_score}/10" if result.confidence_score is not None else ""
+            status = Text(f"✓  ~{result.word_count} words{conf}", style="green")
 
         table.add_row(result.short_id, result.role, elapsed_str, status)
 

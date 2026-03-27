@@ -18,6 +18,12 @@ Multiple AI models debated across {n_rounds} round(s). Here are all their output
 
 ---
 
+Confidence signals from the debate models:
+
+{confidence_table}
+
+---
+
 Synthesize into an ADR using this EXACT structure (do not deviate):
 
 # ADR: [derive a concise title]
@@ -35,6 +41,12 @@ Synthesize into an ADR using this EXACT structure (do not deviate):
 ## Disagreements
 [Where models diverged. For each: what was the disagreement, why it matters, what context would resolve it]
 
+## Confidence Signals
+
+| Model | Role | Score | Would change if |
+|-------|------|-------|-----------------|
+{confidence_rows}
+
 ## Options Considered
 
 | Option | Pros | Cons | Risk Level |
@@ -43,7 +55,7 @@ Synthesize into an ADR using this EXACT structure (do not deviate):
 ## Decision
 **[The recommendation in one clear sentence.]**
 
-[2-3 paragraphs of rationale: draw on consensus, resolve disagreements, be explicit about what assumptions this decision rests on]
+[2-3 paragraphs of rationale: draw on consensus, resolve disagreements, be explicit about what assumptions this decision rests on. Weight high-confidence model outputs more heavily; flag where low confidence signals genuine uncertainty.]
 
 ## Consequences
 
@@ -131,9 +143,29 @@ def _format_all_rounds(all_rounds: list[RoundResult]) -> str:
         header = f"### Round {rr.round_index + 1}: {rr.round_name}"
         parts.append(header)
         for r in rr.successful:
-            parts.append(f"\n**{r.short_id}** (role: *{r.role}*)\n\n{r.content}")
+            conf = f" · confidence {r.confidence_score}/10" if r.confidence_score is not None else ""
+            parts.append(f"\n**{r.short_id}** (role: *{r.role}*{conf})\n\n{r.content}")
             parts.append("\n---")
     return "\n".join(parts)
+
+
+def _build_confidence_table(all_rounds: list[RoundResult]) -> tuple[str, str]:
+    """Return (prose_summary, markdown_rows) for confidence signals across all debate rounds."""
+    rows: list[tuple[str, str, str, str]] = []
+    for rr in all_rounds:
+        for r in rr.successful:
+            if r.confidence_score is not None:
+                rows.append((r.short_id, r.role, f"{r.confidence_score}/10", r.confidence_change))
+
+    if not rows:
+        prose = "No confidence scores available."
+        md_rows = "| _(none)_ | | | |"
+    else:
+        prose_parts = [f"{row[0]} ({row[1]}): {row[2]}" for row in rows]
+        prose = "Self-reported confidence — " + "; ".join(prose_parts) + "."
+        md_rows = "\n".join(f"| {m} | {rl} | {s} | {w} |" for m, rl, s, w in rows)
+
+    return prose, md_rows
 
 
 async def _call_model(cfg: ModelConfig, prompt: str) -> str:
@@ -173,12 +205,16 @@ async def synthesize(
     debate_outputs = _format_all_rounds(all_rounds[:-1])
     n_models_total = sum(len(rr.successful) for rr in all_rounds)
 
+    confidence_prose, confidence_rows = _build_confidence_table(all_rounds[:-1])
+
     if len(active) == 1:
         # Single chairman/arbiter
         arbiter = active[0]
         prompt = _SYNTHESIS_PROMPT.format(
             question=question,
             all_round_outputs=debate_outputs,
+            confidence_table=confidence_prose,
+            confidence_rows=confidence_rows,
             date=date.today().isoformat(),
             n_rounds=len(all_rounds),
             n_models_total=n_models_total,

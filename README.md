@@ -99,7 +99,7 @@ The final round can use 2 models instead of 1. A `conservative` arbiter recommen
 
 ### 5. Disagreement is the output, not the problem
 
-The synthesized ADR has a dedicated **Disagreements** section — a structured analysis of where models converged (high-confidence signals), where they diverged, and what specific context would resolve the disagreement.
+The synthesized ADR has a dedicated **Disagreements** section — a structured analysis of where models converged, where they diverged, and what specific context would resolve the disagreement. A **Confidence Signals** table shows each model's self-reported certainty (1–10) and what would flip their recommendation — giving the chairman (and you) a calibrated picture of where the debate is genuinely uncertain.
 
 ### 6. Two auth modes: API key or CLI session
 
@@ -224,7 +224,7 @@ dissenter ask "..." --quick                                   # auto-detect Olla
 dissenter ask "..." --model ollama/mistral@skeptic --model ollama/phi3@pragmatist --chairman ollama/mistral
 ```
 
-Every run saves a `config.toml` snapshot in the run directory for exact re-runs.
+Every run saves a `config.toml` snapshot in the run directory for exact re-runs. Every debate model also self-reports a confidence score (1–10) and what would change its stance — shown in the live table and rendered as a `## Confidence Signals` table in the ADR.
 
 ---
 
@@ -623,8 +623,8 @@ dissenter ask "Should I use Redis or Postgres for session storage?" --config dis
 - [x] `dissenter uninstall` — full app data removal
 - [x] `--deep` flag: peer critique round (ICE paper, +7–45% accuracy on hard benchmarks)
 - [x] Automated versioning via `hatch-vcs` — version derived from git tag at build time
+- [x] Confidence scoring — each model self-reports certainty (1–10) and what would change its stance; surfaced in the live table and ADR
 
 **Planned:**
 - [ ] Disagreement classifier: factual vs. trade-off vs. context-dependent
-- [ ] Confidence scoring: each model rates certainty and states what would change its answer
 - [ ] Dynamic role inference: infer relevant roles from question type (security, performance, cost, maintainability)

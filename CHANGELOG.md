@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [1.7.0] — 2026-03-26
+
+### Added
+- **Confidence scoring** — each debate model now self-reports a confidence score (1–10) and states what specific evidence would change its recommendation. Confidence is parsed out of the model response, shown in the live status table during each round, included inline in the debate context passed to the chairman, and rendered as a `## Confidence Signals` table in the synthesized ADR. Low-confidence signals and cross-model divergence are explicitly flagged in the synthesis rationale.
+
+---
+
 ## [1.6.0] — 2026-03-26
 
 ### Added
