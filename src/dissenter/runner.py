@@ -303,7 +303,7 @@ def _status_table(
         elif result.error:
             status = Text(f"✗ {result.error[:35]}", style="red")
         else:
-            conf = f" · {result.confidence_score}/10" if result.confidence_score is not None else ""
+            conf = f" · confidence {result.confidence_score}/10" if result.confidence_score is not None else ""
             status = Text(f"✓  ~{result.word_count} words{conf}", style="green")
 
         table.add_row(result.short_id, result.role, elapsed_str, status)

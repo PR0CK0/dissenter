@@ -2,6 +2,32 @@
 
 All notable changes to this project are documented here.
 
+## [2.1.2] — 2026-03-27
+
+### Fixed
+- **Loading spinner style** — was `dim grey` (unrecognised), now `dim` to match synthesis/exit message styling.
+- **Pre-flight credential check** — `dissenter ask` now validates all models before starting: Ollama models must be installed, CLI-auth models must have the CLI on PATH, API-auth models must have the env var set (or `api_key` in config). Exits with a clear per-model error list instead of failing mid-run.
+- **Confidence display** — status table now shows `confidence 8/10` instead of bare `8/10`.
+
+### Tests
+- 7 new pre-flight tests (`test_preflight.py`) covering missing Ollama model, missing API key, missing CLI, explicit `api_key` bypass, multi-problem reporting, and passing cases.
+- 2 new status table tests verifying `confidence N/10` label renders correctly.
+
+---
+
+### Fixed
+- **Loading spinner style** — was `dim grey` (unrecognised), now `dim` to match synthesis/exit message styling.
+- **Pre-flight credential check** — `dissenter ask` now validates all models before starting: Ollama models must be installed, CLI-auth models must have the CLI on PATH, API-auth models must have the env var set (or `api_key` in config). Exits with a clear per-model error list instead of failing mid-run.
+- **Confidence display** — status table now shows `confidence 8/10` instead of bare `8/10`.
+
+---
+
+### Fixed
+- **Loading spinner style** — was `dim grey` (unrecognised), now `dim` to match synthesis/exit message styling.
+- **Ollama pre-flight check** — `dissenter ask` now validates all Ollama models in the config are installed before starting the debate. If any are missing, it exits immediately with a clear error and the `ollama pull` command to fix it.
+
+---
+
 ## [2.1.1] — 2026-03-27
 
 ### Fixed

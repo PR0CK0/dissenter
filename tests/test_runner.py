@@ -5,8 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import io
+from rich.console import Console
 from dissenter.config import DissentConfig, ModelConfig, RoundConfig
-from dissenter.runner import ModelResult, RoundResult, run_round, _build_prior_context, _parse_confidence
+from dissenter.runner import ModelResult, RoundResult, run_round, _build_prior_context, _parse_confidence, _status_table
 
 
 def _mock_response(content: str) -> MagicMock:
@@ -248,3 +250,36 @@ async def test_run_round_no_confidence_block_leaves_fields_none(role_prompts):
     assert mr.success
     assert mr.confidence_score is None
     assert mr.confidence_change == ""
+
+
+def _render_table(results: dict, done: set, start_times: dict) -> str:
+    table = _status_table("debate", 0, results, done, start_times)
+    buf = io.StringIO()
+    console = Console(file=buf, highlight=False, no_color=True, width=200)
+    console.print(table)
+    return buf.getvalue()
+
+
+def test_status_table_shows_confidence_label():
+    import time
+    mr = ModelResult(
+        model_id="ollama/mistral", role="skeptic", round_name="debate",
+        content="some answer", elapsed=5.0,
+        confidence_score=8, confidence_change="If team < 5 engineers.",
+    )
+    key = "ollama/mistral::skeptic::0"
+    rendered = _render_table({key: mr}, {key}, {key: time.monotonic() - 5})
+    assert "confidence 8/10" in rendered
+
+
+def test_status_table_no_confidence_when_absent():
+    import time
+    mr = ModelResult(
+        model_id="ollama/mistral", role="skeptic", round_name="debate",
+        content="some answer", elapsed=5.0,
+        confidence_score=None,
+    )
+    key = "ollama/mistral::skeptic::0"
+    rendered = _render_table({key: mr}, {key}, {key: time.monotonic() - 5})
+    assert "confidence" not in rendered
+    assert "/10" not in rendered

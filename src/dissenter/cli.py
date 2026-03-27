@@ -194,6 +194,41 @@ def ask(
         err.print(f"\n[red]Error:[/red] {e}\n")
         raise typer.Exit(1)
 
+    # Pre-flight: verify credentials/availability for every model before starting
+    _ollama_installed = set(detect_ollama_models())
+    _clis = detect_clis()
+    _api_keys = detect_api_keys()
+    _PROVIDER_CLI = {"anthropic": "claude", "gemini": "gemini", "google": "gemini"}
+    problems: list[tuple[str, str]] = []
+    for _r in cfg.rounds:
+        for _m in _r.active_models:
+            _provider = _m.id.split("/")[0]
+            if _provider == "ollama":
+                _name = _m.id.split("/", 1)[1]
+                if _name not in _ollama_installed:
+                    problems.append((_m.id, f"not installed — run: ollama pull {_name}"))
+            elif _m.auth == "cli":
+                _cli = _m.cli_command or _PROVIDER_CLI.get(_provider)
+                if _cli and not _clis.get(_cli):
+                    problems.append((_m.id, f"CLI auth requested but `{_cli}` not found on PATH"))
+                elif not _cli:
+                    problems.append((_m.id, "CLI auth requested but no CLI known for this provider — set cli_command in config"))
+            else:  # api auth
+                if _m.api_key:
+                    continue  # explicit key in config is always valid
+                if _provider in _api_keys and not _api_keys[_provider]:
+                    _env = KNOWN_PROVIDERS.get(_provider, f"{_provider.upper()}_API_KEY")
+                    problems.append((_m.id, f"no API key — export {_env}"))
+    if problems:
+        err.print()
+        err.print("[red]Error:[/red] Cannot start — credential issues with the following models:\n")
+        for _mid, _reason in problems:
+            err.print(f"  [red]✗[/red]  [bold]{_mid}[/bold]  [dim]{_reason}[/dim]")
+        err.print()
+        err.print("  Run [bold]dissenter models[/bold] to see what's available.")
+        err.print()
+        raise typer.Exit(1)
+
     total_models = sum(len(r.active_models) for r in cfg.rounds)
     _header("ask")
     err.print(f"  [dim]Question:[/dim] {question}")
@@ -214,7 +249,7 @@ def ask(
     from rich.text import Text
 
     with Live(
-        Spinner("dots", text=Text(f" {loading_message()}", style="dim grey")),
+        Spinner("dots", text=Text(f" {loading_message()}", style="dim")),
         console=err, refresh_per_second=10, transient=True,
     ):
         from .runner import run_all_rounds
