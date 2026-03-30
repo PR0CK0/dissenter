@@ -250,6 +250,24 @@ dissenter ask "..." --config deep                 # use named preset
 
 ---
 
+### `dissenter generate`
+
+Generate a config file from a natural-language prompt. An LLM reads your intent plus the full detected environment (installed models, CLI tools, API keys, role catalog, TOML schema) and writes a valid config. Validates through the full pipeline and retries with injected error context on failure.
+
+| Flag | Description |
+|------|-------------|
+| `--model <id>`, `-m` | Model to use for generation (auto-picked if omitted: Claude CLI > Gemini CLI > API > Ollama) |
+| `--output <name>`, `-o` | Config name — saved as `dissenter_<name>.toml` (timestamped if omitted) |
+| `--retries <N>`, `-r` | Max generation attempts (default: 3) |
+
+```bash
+dissenter generate "fast 2-round debate with local ollama models"
+dissenter generate "claude vs gemini, skeptic and pragmatist roles" --output claude-gemini
+dissenter generate "..." --model ollama/mistral:latest
+```
+
+---
+
 ### `dissenter models`
 
 Show detected Ollama models, CLI tool paths, and API key status. No flags.
@@ -624,6 +642,8 @@ dissenter ask "Should I use Redis or Postgres for session storage?" --config dis
 - [x] `--deep` flag: peer critique round (ICE paper, +7–45% accuracy on hard benchmarks)
 - [x] Automated versioning via `hatch-vcs` — version derived from git tag at build time
 - [x] Confidence scoring — each model self-reports certainty (1–10) and what would change its stance; surfaced in the live table and ADR
+- [x] `dissenter generate` — LLM-powered config generation from a natural-language prompt with validation + retry loop
+- [x] Pre-flight credential check — validates all model availability before starting a debate
 
 **Planned:**
 - [ ] Disagreement classifier: factual vs. trade-off vs. context-dependent

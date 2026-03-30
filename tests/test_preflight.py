@@ -164,7 +164,7 @@ def test_preflight_missing_cli_tool(tmp_path):
 
     assert result.exit_code == 1
     assert "claude" in result.output
-    assert "not found" in result.output
+    assert "not on PATH" in result.output
 
 
 def test_preflight_cli_tool_present_passes(tmp_path):

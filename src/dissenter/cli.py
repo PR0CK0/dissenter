@@ -195,35 +195,18 @@ def ask(
         raise typer.Exit(1)
 
     # Pre-flight: verify credentials/availability for every model before starting
-    _ollama_installed = set(detect_ollama_models())
-    _clis = detect_clis()
-    _api_keys = detect_api_keys()
-    _PROVIDER_CLI = {"anthropic": "claude", "gemini": "gemini", "google": "gemini"}
-    problems: list[tuple[str, str]] = []
-    for _r in cfg.rounds:
-        for _m in _r.active_models:
-            _provider = _m.id.split("/")[0]
-            if _provider == "ollama":
-                _name = _m.id.split("/", 1)[1]
-                if _name not in _ollama_installed:
-                    problems.append((_m.id, f"not installed — run: ollama pull {_name}"))
-            elif _m.auth == "cli":
-                _cli = _m.cli_command or _PROVIDER_CLI.get(_provider)
-                if _cli and not _clis.get(_cli):
-                    problems.append((_m.id, f"CLI auth requested but `{_cli}` not found on PATH"))
-                elif not _cli:
-                    problems.append((_m.id, "CLI auth requested but no CLI known for this provider — set cli_command in config"))
-            else:  # api auth
-                if _m.api_key:
-                    continue  # explicit key in config is always valid
-                if _provider in _api_keys and not _api_keys[_provider]:
-                    _env = KNOWN_PROVIDERS.get(_provider, f"{_provider.upper()}_API_KEY")
-                    problems.append((_m.id, f"no API key — export {_env}"))
-    if problems:
+    from .validate import validate_toml
+    _, preflight_errors = validate_toml(
+        config_to_toml(cfg),
+        detect_ollama_models(), detect_clis(), detect_api_keys(),
+    )
+    # Only show preflight errors (schema/sanity already passed since cfg loaded fine)
+    preflight_errors = [e for e in preflight_errors if e.stage == "preflight"]
+    if preflight_errors:
         err.print()
         err.print("[red]Error:[/red] Cannot start — credential issues with the following models:\n")
-        for _mid, _reason in problems:
-            err.print(f"  [red]✗[/red]  [bold]{_mid}[/bold]  [dim]{_reason}[/dim]")
+        for e in preflight_errors:
+            err.print(f"  [red]✗[/red]  [dim]{e.message}[/dim]")
         err.print()
         err.print("  Run [bold]dissenter models[/bold] to see what's available.")
         err.print()
@@ -363,6 +346,129 @@ def init(
         run_auto_wizard(output, save, rounds, memory, err)
     else:
         run_wizard(output, force, save, err)
+
+
+@app.command()
+def generate(
+    prompt: str = typer.Argument(..., help="Natural-language description of the config you want"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model ID for the generator (auto-picked if omitted)"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Config name — saved as dissenter_<name>.toml (timestamp if omitted)"),
+    retries: int = typer.Option(3, "--retries", "-r", help="Max generation attempts (default: 3)"),
+) -> None:
+    """Generate a config file from a natural-language prompt using an LLM.
+
+    An available model reads your intent plus the full detected environment
+    (Ollama models, CLI tools, API keys, role catalog, TOML schema) and writes
+    a valid dissenter config. Validates the output through the full pipeline and
+    retries with injected error context on failure.
+
+    Examples:
+      dissenter generate "fast 2-round debate with local ollama models"
+      dissenter generate "claude vs gemini, skeptic and pragmatist roles"
+      dissenter generate "..." --model ollama/mistral:latest
+      dissenter generate "..." --output kafka-debate
+    """
+    _header("generate")
+
+    ollama_models = detect_ollama_models()
+    clis = detect_clis()
+    api_keys = detect_api_keys()
+
+    # Pick generator model
+    from .generate import pick_generator_model, generate_config
+
+    if model:
+        extra = {"api_base": "http://localhost:11434"} if model.startswith("ollama/") else {}
+        gen_model = ModelConfig(
+            id=model, role="generator", timeout=120,
+            auth=infer_auth(model, clis), extra=extra,
+        )
+    else:
+        try:
+            gen_model = pick_generator_model(clis, api_keys, ollama_models)
+        except RuntimeError as e:
+            err.print(f"\n[red]Error:[/red] {e}\n")
+            raise typer.Exit(1)
+
+    err.print(f"  [dim]Generator:[/dim] {gen_model.id} ({gen_model.auth})")
+    err.print(f"  [dim]Retries  :[/dim] {retries}")
+    err.print()
+
+    from rich.spinner import Spinner
+    from rich.live import Live
+    from rich.text import Text
+    from .wizard import loading_message
+
+    def on_attempt(attempt: int, prev_errors):
+        if attempt == 1:
+            err.print(f"  [dim]Attempt {attempt}/{retries} — generating config...[/dim]")
+        else:
+            n_errors = len(prev_errors) if prev_errors else 0
+            err.print(f"  [yellow]Attempt {attempt}/{retries} — retrying ({n_errors} error{'s' if n_errors != 1 else ''} from last attempt)[/yellow]")
+
+    try:
+        async def _run():
+            return await generate_config(
+                intent=prompt,
+                generator_model=gen_model,
+                ollama_models=ollama_models,
+                clis=clis,
+                api_keys=api_keys,
+                max_retries=retries,
+                on_attempt=on_attempt,
+            )
+
+        with Live(
+            Spinner("dots", text=Text(f" {loading_message()}", style="dim")),
+            console=err, refresh_per_second=10, transient=True,
+        ):
+            result = asyncio.run(_run())
+
+    except RuntimeError as e:
+        err.print(f"\n[red]Error:[/red] {e}\n")
+        raise typer.Exit(1)
+    except KeyboardInterrupt:
+        from .wizard import exit_message
+        err.print(f"\n  [dim]{exit_message()}[/dim]\n")
+        raise typer.Exit(130)
+
+    # Determine output path
+    if output:
+        filename = f"dissenter_{output}.toml"
+    else:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"dissenter_{ts}.toml"
+    out_path = Path(filename)
+
+    out_path.write_text(result.toml_str, encoding="utf-8")
+
+    err.print()
+    err.print(f"  [green]✓[/green] Config generated in {result.attempts} attempt{'s' if result.attempts != 1 else ''}")
+    err.print(f"  [green]✓[/green] Saved to [bold]{out_path}[/bold]")
+    err.print()
+
+    # Show the config tree inline
+    from .config import load_config as _lc
+    cfg = _lc(out_path)
+    tree = Tree(f"[bold]dissenter[/bold]  [dim]{cfg.output_dir}[/dim]")
+    for i, round_cfg in enumerate(cfg.rounds):
+        label = f"Round {i+1}: [cyan]{round_cfg.name or '(unnamed)'}[/cyan]"
+        if i == len(cfg.rounds) - 1:
+            label += "  [yellow][final][/yellow]"
+        r_node = tree.add(label)
+        for m in round_cfg.models:
+            status = "[green]✓[/green]" if m.enabled else "[dim]—[/dim]"
+            r_node.add(
+                f"{status} [bold]{m.id}[/bold]  [dim]role:[/dim] {m.role}  "
+                f"[dim]auth:[/dim] {m.auth}  [dim]timeout:[/dim] {m.timeout}s"
+            )
+        if round_cfg.combine_model:
+            r_node.add(f"[dim]combine via:[/dim] {round_cfg.combine_model}")
+    out.print(tree)
+
+    err.print()
+    err.print(f"  [dim]Run it:[/dim]  dissenter ask \"...\" --config {out_path}")
+    err.print()
 
 
 @app.command()

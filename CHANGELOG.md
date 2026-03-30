@@ -2,16 +2,27 @@
 
 All notable changes to this project are documented here.
 
+## [2.2.0] — 2026-03-28
+
+### Added
+- **`dissenter generate "prompt"`** — LLM-powered config generation from a natural-language description. The generator reads the full detected environment (Ollama models, CLI tools, API keys), the complete role catalog, and the TOML schema spec, then writes a valid config. Output is validated through a 4-stage pipeline (TOML parse → pydantic schema → pre-flight credentials → sanity) and automatically retried with injected error context on failure (default 3 attempts). Generator model is auto-picked (Claude CLI > Gemini CLI > API > Ollama) or set via `--model`.
+- **`validate.py`** — shared config validation module used by both `ask` and `generate`. Validates TOML parsing, pydantic schema, credential availability, and structural sanity. Returns typed `ConfigError` objects with stage labels.
+- **`generate.py`** — prompt builder with modular constant string blocks (`_INTRO`, `_SCHEMA_SPEC`, `_ROLES_CATALOG`, `_ENV_TEMPLATE`, `_INTENT_TEMPLATE`, `_RETRY_TEMPLATE`) assembled by `build_prompt()` and `build_retry_prompt()`. Includes TOML extraction from code fences, model auto-picker, and async generate-validate-retry loop.
+
+### Changed
+- **Pre-flight check refactored** — `ask` now uses the shared `validate_toml()` from `validate.py` instead of inline checks.
+
+### Fixed
+- **Loading spinner style** — `dim grey` → `dim`
+- **Confidence display** — `8/10` → `confidence 8/10` in status table
+
+---
+
 ## [2.1.2] — 2026-03-27
 
 ### Fixed
-- **Loading spinner style** — was `dim grey` (unrecognised), now `dim` to match synthesis/exit message styling.
 - **Pre-flight credential check** — `dissenter ask` now validates all models before starting: Ollama models must be installed, CLI-auth models must have the CLI on PATH, API-auth models must have the env var set (or `api_key` in config). Exits with a clear per-model error list instead of failing mid-run.
 - **Confidence display** — status table now shows `confidence 8/10` instead of bare `8/10`.
-
-### Tests
-- 7 new pre-flight tests (`test_preflight.py`) covering missing Ollama model, missing API key, missing CLI, explicit `api_key` bypass, multi-problem reporting, and passing cases.
-- 2 new status table tests verifying `confidence N/10` label renders correctly.
 
 ---
 
