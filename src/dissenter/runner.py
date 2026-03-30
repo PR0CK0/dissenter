@@ -144,9 +144,20 @@ class RoundResult:
         return [r for r in self.results if r.success]
 
 
-def _build_prior_context(prior_rounds: list[RoundResult]) -> str:
+_USER_CONTEXT_TEMPLATE = """\
+[User-supplied reference material]
+
+{content}
+
+[End reference material]
+
+"""
+
+
+def _build_prior_context(prior_rounds: list[RoundResult], user_context: str = "") -> str:
+    prefix = _USER_CONTEXT_TEMPLATE.format(content=user_context) if user_context else ""
     if not prior_rounds:
-        return ""
+        return prefix
     parts = []
     for rr in prior_rounds:
         responses = "\n\n".join(
@@ -160,7 +171,7 @@ def _build_prior_context(prior_rounds: list[RoundResult]) -> str:
                 responses=responses,
             )
         )
-    return "".join(parts)
+    return prefix + "".join(parts)
 
 
 # Known provider → CLI command mappings
@@ -414,9 +425,10 @@ async def run_round(
     question: str,
     prior_rounds: list[RoundResult],
     role_prompts: dict[str, str],
+    user_context: str = "",
 ) -> RoundResult:
     active = round_cfg.active_models
-    prior_context = _build_prior_context(prior_rounds)
+    prior_context = _build_prior_context(prior_rounds, user_context)
     round_name = round_cfg.name or f"round_{round_index + 1}"
 
     # Use (model_id, role, index) as unique key to support same model with different roles
@@ -450,6 +462,7 @@ async def run_all_rounds(
     cfg: DissentConfig,
     question: str,
     deep: bool = False,
+    user_context: str = "",
 ) -> list[RoundResult]:
     role_prompts = load_roles()
     all_results: list[RoundResult] = []
@@ -467,7 +480,7 @@ async def run_all_rounds(
         console.print()
         console.print(Rule(f"[bold]Round {display_num} of {total_display}: {round_cfg.name or ''}[/bold] ({len(active)} models)", style="dim"))
 
-        rr = await run_round(round_cfg, i, question, all_results, role_prompts)
+        rr = await run_round(round_cfg, i, question, all_results, role_prompts, user_context)
         all_results.append(rr)
 
         if not rr.successful:

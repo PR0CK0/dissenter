@@ -39,7 +39,7 @@ from .detect import (
 # so that models / history / config / init are instant
 
 app = typer.Typer(
-    help="dissenter — multi-LLM debate engine for architectural decisions.",
+    help="Run multiple LLMs through a structured debate for complex questions. Surface where they disagree. Synthesize a decision.",
     add_completion=False,
 )
 
@@ -155,6 +155,14 @@ def ask(
     deep: bool = typer.Option(
         False, "--deep", help="Inject a mutual critique round after debate, before synthesis (+accuracy)"
     ),
+    context: Optional[List[Path]] = typer.Option(
+        None, "--context", "-x",
+        help="File(s) to inject as reference material — repeatable",
+    ),
+    prior: Optional[int] = typer.Option(
+        None, "--prior", "-p",
+        help="Decision ID from history to inject as context (see `dissenter history`)",
+    ),
 ) -> None:
     """Run the full debate pipeline and synthesize a decision.
 
@@ -166,6 +174,8 @@ def ask(
       dissenter ask "..." --quick                         # auto-detect Ollama models
       dissenter ask "..." --model ollama/mistral@skeptic --model ollama/phi3@pragmatist
       dissenter ask "..." --deep                          # add mutual critique round
+      dissenter ask "..." --context planning-doc.md       # inject a reference file
+      dissenter ask "..." --prior 3                       # inject past decision #3 as context
       dissenter ask "..." --config decisions/20260321/config.toml  # exact re-run
     """
     try:
@@ -212,11 +222,41 @@ def ask(
         err.print()
         raise typer.Exit(1)
 
+    # Build user context from --context files and/or --prior decision
+    user_context_parts: list[str] = []
+    if context:
+        for ctx_path in context:
+            if not ctx_path.exists():
+                err.print(f"\n[red]Error:[/red] Context file not found: {ctx_path}\n")
+                raise typer.Exit(1)
+            user_context_parts.append(
+                f"--- {ctx_path.name} ---\n{ctx_path.read_text(encoding='utf-8').strip()}"
+            )
+    if prior is not None:
+        from .db import get_run
+        run = get_run(prior)
+        if not run:
+            err.print(f"\n[red]Error:[/red] No decision with ID {prior}. Run `dissenter history` to see available IDs.\n")
+            raise typer.Exit(1)
+        user_context_parts.append(
+            f"--- Prior decision #{prior} ---\n{run['decision_md'].strip()}"
+        )
+    user_context = "\n\n".join(user_context_parts)
+
     total_models = sum(len(r.active_models) for r in cfg.rounds)
     _header("ask")
     err.print(f"  [dim]Question:[/dim] {question}")
     err.print(f"  [dim]Rounds  :[/dim] {len(cfg.rounds)}{' + critique' if deep else ''}")
     err.print(f"  [dim]Models  :[/dim] {total_models} across all rounds")
+    if user_context:
+        n_files = len(context or [])
+        n_prior = 1 if prior is not None else 0
+        parts_desc = []
+        if n_files:
+            parts_desc.append(f"{n_files} file{'s' if n_files != 1 else ''}")
+        if n_prior:
+            parts_desc.append(f"decision #{prior}")
+        err.print(f"  [dim]Context :[/dim] {' + '.join(parts_desc)}")
 
     mem = estimate_ollama_memory(cfg)
     if mem["peak_bytes"] > 0:
@@ -239,7 +279,7 @@ def ask(
         from .synthesis import synthesize
 
     try:
-        all_rounds, final_text, synthesis_results = asyncio.run(_main(question, cfg, deep))
+        all_rounds, final_text, synthesis_results = asyncio.run(_main(question, cfg, deep, user_context))
     except KeyboardInterrupt:
         from .wizard import exit_message
         err.print()
@@ -712,7 +752,7 @@ def config(
             out.print(f"  {role}: {weight:.0%}")
 
 
-async def _main(question: str, cfg: DissentConfig, deep: bool = False):
+async def _main(question: str, cfg: DissentConfig, deep: bool = False, user_context: str = ""):
     from rich.live import Live
     from rich.spinner import Spinner
     from rich.text import Text
@@ -720,7 +760,7 @@ async def _main(question: str, cfg: DissentConfig, deep: bool = False):
     from .synthesis import synthesize
 
     err.print(Rule("[dim]beginning debate[/dim]", style="dim"))
-    all_rounds = await run_all_rounds(cfg, question, deep=deep)
+    all_rounds = await run_all_rounds(cfg, question, deep=deep, user_context=user_context)
 
     err.print()
     err.print(Rule("[dim]synthesizing[/dim]", style="dim"))

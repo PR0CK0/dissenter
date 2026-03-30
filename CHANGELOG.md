@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [2.3.0] — 2026-03-30
+
+### Added
+- **`--context <file>` / `-x`** on `ask` — inject one or more reference files as context for all debate models. Repeatable. The file contents are prepended to every model's prompt as `[User-supplied reference material]`.
+- **`--prior <id>` / `-p`** on `ask` — inject a past decision (by ID from `dissenter history`) as context. Pulls the full ADR from the SQLite database and prepends it the same way.
+
+---
+
 ## [2.2.1] — 2026-03-30
 
 ### Added

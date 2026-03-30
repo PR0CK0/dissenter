@@ -215,11 +215,15 @@ Run a debate and save the decision.
 | `--chairman <id>` | Set the final-round chairman when using `--model` |
 | `--output <dir>` | Override the output directory (default: `decisions/`) |
 | `--deep` | Inject a mutual critique round before synthesis — each model critiques the others' arguments, then the chairman synthesizes everything |
+| `--context <file>`, `-x` | Inject a reference file as context for all models — repeatable for multiple files |
+| `--prior <id>`, `-p` | Inject a past decision (by ID from `dissenter history`) as context |
 
 ```bash
 dissenter ask "Should I use Kafka or Postgres outbox?"
 dissenter ask "..." --config fast                             # named preset
-dissenter ask "..." --config decisions/20260321_143022/config.toml  # exact re-run
+dissenter ask "..." --context planning-doc.md                 # inject a reference file
+dissenter ask "..." --context spec.md --context rfc.md        # multiple files
+dissenter ask "..." --prior 3                                 # inject past decision #3
 dissenter ask "..." --quick                                   # auto-detect Ollama
 dissenter ask "..." --model ollama/mistral@skeptic --model ollama/phi3@pragmatist --chairman ollama/mistral
 ```
