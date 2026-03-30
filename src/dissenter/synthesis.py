@@ -168,6 +168,32 @@ def _build_confidence_table(all_rounds: list[RoundResult]) -> tuple[str, str]:
     return prose, md_rows
 
 
+_NAMING_PROMPT = """\
+Given this question and decision, respond with exactly ONE lowercase word \
+(no punctuation, no spaces, no explanation) that best describes the core topic. \
+Examples: kafka, kubernetes, caching, postgres, auth, microservices, redis.
+
+Question: {question}
+
+Decision summary: {summary}
+
+One word:"""
+
+
+async def name_decision(question: str, decision_text: str, arbiter: ModelConfig) -> str:
+    """Ask the arbiter for a single-word name for this decision."""
+    import re
+    summary = decision_text[:500]  # first 500 chars is enough context
+    prompt = _NAMING_PROMPT.format(question=question, summary=summary)
+    try:
+        raw = await _call_model(arbiter, prompt)
+        # Extract first word, lowercase, strip punctuation
+        word = re.sub(r"[^a-z0-9]", "", raw.strip().split()[0].lower())
+        return word[:20] if word else "decision"
+    except Exception:
+        return "decision"
+
+
 async def _call_model(cfg: ModelConfig, prompt: str) -> str:
     if cfg.auth == "cli":
         return await asyncio.wait_for(

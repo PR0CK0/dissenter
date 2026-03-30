@@ -1,0 +1,67 @@
+/* Main layout */
+#main-layout {
+    width: 1fr;
+    height: 1fr;
+}
+
+/* Sidebar */
+#sidebar {
+    width: 30;
+    dock: left;
+    background: $surface;
+    border-right: solid $primary-background;
+}
+
+.sidebar-section-header {
+    text-style: bold;
+    color: $text-muted;
+    padding: 1 1 0 1;
+}
+
+.sidebar-list {
+    height: auto;
+    max-height: 8;
+}
+
+.sidebar-item {
+    padding: 0 1;
+}
+
+.sidebar-history {
+    height: auto;
+    max-height: 16;
+}
+
+.sidebar-history-item {
+    color: $text-muted;
+}
+
+.sidebar-muted {
+    color: $text-muted;
+    padding: 0 2;
+    text-style: italic;
+}
+
+/* Content area */
+#content-switcher {
+    width: 1fr;
+    height: 1fr;
+}
+
+.placeholder {
+    padding: 2 4;
+    color: $text-muted;
+}
+
+#home-content {
+    padding: 2 2;
+}
+
+/* Hide scrollbars on Select dropdowns globally */
+Select > SelectOverlay {
+    scrollbar-size: 0 0;
+}
+
+Select OptionList {
+    scrollbar-size: 0 0;
+}

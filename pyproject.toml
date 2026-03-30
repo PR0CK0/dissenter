@@ -30,6 +30,7 @@ dependencies = [
     "pydantic>=2.9.0",
     "platformdirs>=4.3.0",
     "questionary>=2.0.0",
+    "textual>=1.0.0",
 ]
 
 [project.urls]

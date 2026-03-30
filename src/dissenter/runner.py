@@ -426,6 +426,7 @@ async def run_round(
     prior_rounds: list[RoundResult],
     role_prompts: dict[str, str],
     user_context: str = "",
+    on_progress: Optional[callable] = None,
 ) -> RoundResult:
     active = round_cfg.active_models
     prior_context = _build_prior_context(prior_rounds, user_context)
@@ -444,14 +445,34 @@ async def run_round(
         result = await _query_model(cfg, round_name, question, prior_context, role_prompts)
         results[key] = result
         done.add(key)
+        if on_progress:
+            on_progress("model_done", {
+                "round_name": round_name, "round_index": round_index,
+                "model_id": result.model_id, "role": result.role,
+                "success": result.success, "error": result.error,
+                "elapsed": result.elapsed, "word_count": result.word_count,
+                "confidence": result.confidence_score,
+            })
+
+    if on_progress:
+        for m in active:
+            on_progress("model_start", {
+                "round_name": round_name, "round_index": round_index,
+                "model_id": m.id, "role": m.role,
+            })
 
     tasks = [asyncio.create_task(run_and_track(k, m)) for k, m in zip(keys, active)]
 
-    with Live(console=console, refresh_per_second=4, transient=False) as live:
+    if on_progress:
+        # No Rich Live — progress is reported via callback
         while not all(t.done() for t in tasks):
-            live.update(_status_table(round_name, round_index, results, done, start_times))
             await asyncio.sleep(0.25)
-        live.update(_status_table(round_name, round_index, results, done, start_times))
+    else:
+        with Live(console=console, refresh_per_second=4, transient=False) as live:
+            while not all(t.done() for t in tasks):
+                live.update(_status_table(round_name, round_index, results, done, start_times))
+                await asyncio.sleep(0.25)
+            live.update(_status_table(round_name, round_index, results, done, start_times))
 
     round_result = RoundResult(round_name=round_name, round_index=round_index)
     round_result.results = list(results.values())
@@ -463,6 +484,7 @@ async def run_all_rounds(
     question: str,
     deep: bool = False,
     user_context: str = "",
+    on_progress: Optional[callable] = None,
 ) -> list[RoundResult]:
     role_prompts = load_roles()
     all_results: list[RoundResult] = []
@@ -477,10 +499,16 @@ async def run_all_rounds(
             continue
 
         display_num += 1
-        console.print()
-        console.print(Rule(f"[bold]Round {display_num} of {total_display}: {round_cfg.name or ''}[/bold] ({len(active)} models)", style="dim"))
+        if not on_progress:
+            console.print()
+            console.print(Rule(f"[bold]Round {display_num} of {total_display}: {round_cfg.name or ''}[/bold] ({len(active)} models)", style="dim"))
+        else:
+            on_progress("round_start", {
+                "round_num": display_num, "total": total_display,
+                "name": round_cfg.name or "", "n_models": len(active),
+            })
 
-        rr = await run_round(round_cfg, i, question, all_results, role_prompts, user_context)
+        rr = await run_round(round_cfg, i, question, all_results, role_prompts, user_context, on_progress)
         all_results.append(rr)
 
         if not rr.successful:
@@ -491,8 +519,14 @@ async def run_all_rounds(
         # After the last debate round (one before final), inject mutual critique
         if deep and i == len(cfg.rounds) - 2 and len(rr.successful) > 1:
             display_num += 1
-            console.print()
-            console.print(Rule(f"[bold]Round {display_num} of {total_display}: critique[/bold] [dim](--deep)[/dim] ({len(active)} models)", style="dim"))
+            if not on_progress:
+                console.print()
+                console.print(Rule(f"[bold]Round {display_num} of {total_display}: critique[/bold] [dim](--deep)[/dim] ({len(active)} models)", style="dim"))
+            else:
+                on_progress("round_start", {
+                    "round_num": display_num, "total": total_display,
+                    "name": "critique (--deep)", "n_models": len(active),
+                })
             critique_rr = await run_critique_round(round_cfg, rr, len(all_results), question, role_prompts)
             all_results.append(critique_rr)
 

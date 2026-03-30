@@ -4,13 +4,13 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from platformdirs import user_data_dir
+from .paths import db_path as _paths_db_path, dissenter_home
 
 
 def get_db_path() -> Path:
-    data_dir = Path(user_data_dir("dissenter"))
-    data_dir.mkdir(parents=True, exist_ok=True)
-    return data_dir / "dissenter.db"
+    from .paths import ensure_dirs
+    ensure_dirs()
+    return _paths_db_path()
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:

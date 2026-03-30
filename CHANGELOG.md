@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here.
 
+## [3.0.0a1] — 2026-03-30
+
+### Added
+- **Textual TUI** — `dissenter` with no args launches a full terminal UI. Sidebar navigation, content switching, live debate progress, markdown decision viewer, history browser, models panel, config tree, and forms for Ask and Generate — all in the terminal.
+  - **Sidebar**: Commands (Ask, Generate) + History (recent decisions from DB) + Environment (Models, Config)
+  - **Ask form**: Question input, config selector (auto-detects local configs + presets), context files, prior ID, deep mode toggle, Start button
+  - **Debate screen**: Full-screen progress with rotating thematic messages, then the ADR rendered in a MarkdownViewer on completion
+  - **History table**: DataTable browsing past decisions, click to view
+  - **Decision viewer**: MarkdownViewer with Continue/Re-run/Back buttons
+  - **Models panel**: Same Ollama + CLI + API key info as `dissenter models`
+  - **Config tree**: Same tree view as `dissenter config`
+  - **Generate form**: Natural-language prompt input for config generation
+- **Keybindings**: `n` Ask, `g` Generate, `h` History, `q` Quit, `?` Help
+- **`textual>=1.0.0`** added as dependency
+
+### Changed
+- **Entry point**: `dissenter` with no subcommand now launches the TUI. All CLI commands (`ask`, `init`, `generate`, etc.) still work unchanged for scripting.
+
+---
+
 ## [2.3.0] — 2026-03-30
 
 ### Added

@@ -5,8 +5,9 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from platformdirs import user_config_dir
 from pydantic import BaseModel, Field, model_validator
+
+from .paths import configs_dir, decisions_dir
 
 
 class ModelConfig(BaseModel):
@@ -35,7 +36,7 @@ class RoundConfig(BaseModel):
 
 
 class DissentConfig(BaseModel):
-    output_dir: Path = Path("decisions")
+    output_dir: Path = Field(default_factory=decisions_dir)
     default_model: str | None = None
     rounds: list[RoundConfig] = Field(default_factory=list)
     role_distribution: dict[str, float] = Field(default_factory=dict)
@@ -69,10 +70,10 @@ def load_config(path: Path | None = None) -> DissentConfig:
         p = Path(path)
         # bare name with no separators → treat as a named preset
         if not p.exists() and "/" not in str(path) and "\\" not in str(path):
-            p = Path(user_config_dir("dissenter")) / f"{path}.toml"
+            p = configs_dir() / f"{path}.toml"
         candidates.append(p)
     candidates.append(Path("dissenter.toml"))
-    candidates.append(Path(user_config_dir("dissenter")) / "config.toml")
+    candidates.append(configs_dir() / "config.toml")
 
     for candidate in candidates:
         if candidate.exists():

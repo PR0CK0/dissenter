@@ -11,19 +11,22 @@
 **Run multiple LLMs through a structured debate for complex questions. Surface where they disagree. Synthesize a decision.**
 
 ```bash
-dissenter ask "Should I use Kafka or a Postgres outbox pattern for event-driven microservices?"
+dissenter                    # launch the TUI
+dissenter ask "Should I use Kafka or a Postgres outbox pattern?"  # CLI mode
 ```
 
 ---
 
 ## Table of Contents
 
+- [Quick start](#quick-start)
+- [Terminal UI](#terminal-ui)
 - [Why this exists](#why-this-exists)
 - [What the existing tools get wrong](#what-the-existing-tools-get-wrong)
 - [What dissenter does differently](#what-dissenter-does-differently)
 - [Architecture](#architecture)
 - [Installation](#installation)
-- [Commands](#commands)
+- [CLI Commands](#cli-commands)
 - [Configuration](#configuration)
   - [Minimal config](#minimal-config)
   - [Multi-round](#multi-round)
@@ -37,6 +40,83 @@ dissenter ask "Should I use Kafka or a Postgres outbox pattern for event-driven 
 - [Comparison](#comparison)
 - [Academic foundations](#academic-foundations)
 - [Roadmap](#roadmap)
+
+---
+
+## Quick start
+
+```bash
+# Install
+uv tool install dissenter
+
+# Option A: launch the TUI (interactive, no flags needed)
+dissenter
+
+# Option B: one-shot CLI
+dissenter ask "Should I use Kafka or a Postgres outbox?"
+
+# Option C: fully local, no API keys
+ollama serve
+dissenter ask "..." --quick
+```
+
+---
+
+## Terminal UI
+
+**v3.0.0** introduces a full terminal UI built with [Textual](https://textual.textualize.io/). Run `dissenter` with no arguments to launch it.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  dissenter v3.0.0                                            │
+├───────────────────┬──────────────────────────────────────────┤
+│                   │                                          │
+│  NEW              │  Welcome to dissenter                    │
+│  ───              │  Run multiple LLMs through structured    │
+│  ▸ Ask a question │  debate. Surface where they disagree.    │
+│  ▸ Generate config│  Synthesize a decision.                  │
+│                   │                                          │
+│  HISTORY          │  Past decisions:  12                     │
+│  ───────          │  Available models: 14                    │
+│  ▸ 03-28 Kafka..  │                                          │
+│  ▸ 03-27 Redis..  │  Press n to ask a question               │
+│  ▸ 03-26 K8s..   │  Press g to generate a config            │
+│                   │  Press ? for help                        │
+│  ENVIRONMENT      │                                          │
+│  ───────────      │                                          │
+│  ▸ Models & keys  │                                          │
+│  ▸ Active config  │                                          │
+│                   │                                          │
+├───────────────────┴──────────────────────────────────────────┤
+│  n Ask  g Generate  h History  q Quit  ? Help                │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### TUI views
+
+| View | How to get there | What it shows |
+|------|-----------------|---------------|
+| **Home** | Launch `dissenter` | Quick stats, keyboard shortcuts |
+| **Ask** | Press `n` | Question input, config selector, context files, `--deep` toggle, Start button |
+| **Debate progress** | Press Start | Loading animation with rotating thematic messages, then the ADR in a markdown viewer |
+| **History** | Press `h` or click a sidebar history item | DataTable of all past runs — click any to view the full decision |
+| **Decision viewer** | Click a history row | Full ADR rendered as markdown, with Continue / Re-run / Back buttons |
+| **Models & keys** | Click "Models & keys" in sidebar | Detected Ollama models, CLI tools, API key status |
+| **Config** | Click "Active config" in sidebar | Tree view of the loaded config (rounds, models, roles, auth) |
+| **Generate** | Press `g` | Natural-language prompt input for LLM-powered config generation |
+
+### TUI keybindings
+
+| Key | Action |
+|-----|--------|
+| `n` | New debate (ask form) |
+| `g` | Generate config |
+| `h` | History browser |
+| `q` | Quit |
+| `?` | Help |
+| `Escape` | Back (from debate screen) |
+
+The TUI and CLI share the same engine. All CLI commands still work for scripting and CI — the TUI is an interactive layer on top.
 
 ---
 
@@ -91,7 +171,7 @@ Rather than asking all models the same neutral question, each model is assigned 
 
 ### 3. Roles as external files
 
-Role prompts are not hardcoded. They live in `src/dissent/roles/*.toml` — plain text files you can read and edit. Add a new file, get a new role. No code changes required.
+Role prompts are not hardcoded. They live in `src/dissenter/roles/*.toml` — plain text files you can read and edit. Add a new file, get a new role. No code changes required.
 
 ### 4. Dual-arbiter output
 
@@ -108,6 +188,14 @@ Every model can use either an API key **or** the authentication from an installe
 ### 7. No OpenRouter dependency, genuine provider heterogeneity
 
 Uses [LiteLLM](https://docs.litellm.ai/) directly — a unified interface to 100+ providers. Cloud, local, and CLI-authenticated models all participate in the same ensemble.
+
+### 8. Context injection — reference files and prior decisions
+
+Inject planning documents, specs, RFCs, or prior decisions as context for all debate models. Use `--context <file>` for files or `--prior <id>` to pull a past decision from the SQLite database. Decisions form a causal chain — each new debate can build on previous ones.
+
+### 9. LLM-powered config generation
+
+`dissenter generate "describe what you want"` uses an LLM to write a valid config from natural language. The generator sees your full environment (detected models, CLI tools, API keys), the role catalog, and the TOML schema — then validates the output and retries with injected error context on failure.
 
 ---
 
@@ -198,9 +286,15 @@ dissenter ask "..." --config dissenter-test.toml
 
 ---
 
-## Commands
+## CLI Commands
+
+All CLI commands work alongside the TUI. Use the CLI for scripting, CI, and one-shot queries. Use the TUI for interactive exploration.
 
 `dissenter --version` (or `-v`) prints the installed version.
+
+### `dissenter` (no args)
+
+Launch the interactive terminal UI. Browse history, start debates, view decisions, inspect models and config — all from a single screen.
 
 ### `dissenter ask`
 
@@ -225,6 +319,7 @@ dissenter ask "..." --context planning-doc.md                 # inject a referen
 dissenter ask "..." --context spec.md --context rfc.md        # multiple files
 dissenter ask "..." --prior 3                                 # inject past decision #3
 dissenter ask "..." --quick                                   # auto-detect Ollama
+dissenter ask "..." --deep                                    # add mutual critique round
 dissenter ask "..." --model ollama/mistral@skeptic --model ollama/phi3@pragmatist --chairman ollama/mistral
 ```
 
@@ -323,30 +418,6 @@ Remove all app data from this machine (database + config presets). Does not remo
 | Flag | Description |
 |------|-------------|
 | `--yes`, `-y` | Skip confirmation prompt |
-
----
-
-### `just` shortcuts
-
-[just](https://just.systems) aliases for all commands — cross-platform (Mac/Linux/Windows):
-
-```bash
-just ask "Should I use Kafka?"
-just ask-local "..."          # Ollama only, no API keys (dissenter-test.toml)
-just quick "..."              # --quick flag
-just init
-just init-save fast
-just init-auto memory=8 rounds=2
-just models
-just show
-just history
-just search "Kafka"
-just clear
-just uninstall
-just test
-just install
-just global-install           # put `dissenter` on PATH system-wide
-```
 
 ---
 
@@ -527,7 +598,7 @@ api_key = "sk-ant-..."
 
 ## Roles
 
-Roles live in `src/dissent/roles/*.toml`. Each file defines a `name`, `description`, and `prompt`. Add a new `.toml` file to create a new role — no code changes needed.
+Roles live in `src/dissenter/roles/*.toml`. Each file defines a `name`, `description`, and `prompt`. Add a new `.toml` file to create a new role — no code changes needed.
 
 | Role | Description | Typical round |
 |------|-------------|---------------|
@@ -547,7 +618,7 @@ Any string is a valid role — unknown roles fall back to the `analyst` prompt.
 To add a custom role:
 
 ```toml
-# src/dissent/roles/security_auditor.toml
+# src/dissenter/roles/security_auditor.toml
 name        = "security auditor"
 description = "Identify attack surfaces and compliance risks"
 prompt      = "Your role is security auditor. Identify the attack surface, likely CVEs, supply chain risks, and compliance implications of each option."
@@ -562,27 +633,28 @@ Each run produces a timestamped directory:
 ```
 decisions/
   20260320_143022/
-    decision.md              ← the ADR (commit this)
-    config.toml              ← exact config snapshot for re-runs
-    debug/
-      round_1_debate/
-        anthropic_claude-sonnet-4-6__devils_advocate.md
-        gemini_gemini-2.0-flash__pragmatist.md
-        ollama_mistral__skeptic.md
-      round_2_refine/
-        gemini_gemini-2.0-flash__analyst.md
-      round_3_final/
-        anthropic_claude-opus-4-6__chairman.md
+    decision.md              <- the ADR (commit this)
+    config.toml              <- exact config snapshot for re-runs
+    round_1_debate/
+      anthropic_claude-sonnet-4-6__devils_advocate.md
+      gemini_gemini-2.0-flash__pragmatist.md
+      ollama_mistral__skeptic.md
+    round_2_refine/
+      gemini_gemini-2.0-flash__analyst.md
+    round_3_final/
+      anthropic_claude-opus-4-6__chairman.md
 ```
 
-The decision file path is printed at the end of each run. The ADR follows a structured format: Context, Consensus, Disagreements, Options table, Decision, Consequences, Mitigations, Open Questions.
+The decision file path is printed at the end of each run. The ADR follows a structured format: Context, Consensus, Disagreements, Confidence Signals, Options table, Decision, Consequences, Mitigations, Open Questions.
+
+Every run is automatically saved to a local SQLite database, browsable via `dissenter history` or the TUI.
 
 ---
 
 ## Testing
 
 ```bash
-just test       # runs the pytest suite
+just test       # runs the pytest suite (96 tests)
 ```
 
 **Testing without API keys — fully local:**
@@ -618,6 +690,9 @@ dissenter ask "Should I use Redis or Postgres for session storage?" --config dis
 | Per-model API key override | ✓ | ✗ | ✗ | ✗ | ✗ |
 | `uv tool install` | ✓ | ✗ | partial | ✗ | ✗ |
 | Peer critique round (`--deep`) | ✓ | partial⁵ | ✗ | ✓⁶ | ✗ |
+| Terminal UI | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Context injection (files + prior decisions) | ✓ | ✗ | ✗ | ✗ | ✗ |
+| LLM config generation | ✓ | ✗ | ✗ | ✗ | ✗ |
 
 *¹ llm-consortium retries up to 3× when arbiter confidence < 0.8 — iteration toward convergence, not debate.*
 *² consilium has configurable `--rounds N` in `discuss`/`socratic` modes.*
@@ -641,7 +716,7 @@ dissenter ask "Should I use Redis or Postgres for session storage?" --config dis
 
 **Done:**
 - [x] Multi-round debate with context passing between rounds
-- [x] Role prompts as external TOML files (`src/dissent/roles/*.toml`)
+- [x] Role prompts as external TOML files (`src/dissenter/roles/*.toml`)
 - [x] Dual-arbiter final round (conservative + liberal + combine_model)
 - [x] CLI session auth (`auth = "cli"`) — use installed CLIs without API keys
 - [x] Same model, different roles in a single round
@@ -658,7 +733,11 @@ dissenter ask "Should I use Redis or Postgres for session storage?" --config dis
 - [x] Confidence scoring — each model self-reports certainty (1–10) and what would change its stance; surfaced in the live table and ADR
 - [x] `dissenter generate` — LLM-powered config generation from a natural-language prompt with validation + retry loop
 - [x] Pre-flight credential check — validates all model availability before starting a debate
+- [x] Context injection — `--context <file>` and `--prior <id>` for reference material in debates
+- [x] Textual TUI — full terminal UI with sidebar navigation, debate progress, history browser, decision viewer, models panel, config inspector
 
 **Planned:**
 - [ ] Disagreement classifier: factual vs. trade-off vs. context-dependent
 - [ ] Dynamic role inference: infer relevant roles from question type (security, performance, cost, maintainability)
+- [ ] Live round-by-round progress in TUI (granular model completion updates instead of spinner)
+- [ ] TUI config editor (edit TOML inline from the terminal UI)

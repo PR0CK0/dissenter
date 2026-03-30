@@ -63,11 +63,14 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def _app_callback(
+    ctx: typer.Context,
     version: bool = typer.Option(False, "--version", "-v", is_eager=True, callback=_version_callback, help="Show version and exit"),
 ) -> None:
-    pass
+    if ctx.invoked_subcommand is None:
+        from .tui import launch_tui
+        launch_tui()
 
 
 # ── Config builders for inline flags ─────────────────────────────────────────
@@ -163,6 +166,10 @@ def ask(
         None, "--prior", "-p",
         help="Decision ID from history to inject as context (see `dissenter history`)",
     ),
+    ghost: bool = typer.Option(
+        False, "--ghost",
+        help="Run the debate but don't save anything — no files, no database entry",
+    ),
 ) -> None:
     """Run the full debate pipeline and synthesize a decision.
 
@@ -176,6 +183,7 @@ def ask(
       dissenter ask "..." --deep                          # add mutual critique round
       dissenter ask "..." --context planning-doc.md       # inject a reference file
       dissenter ask "..." --prior 3                       # inject past decision #3 as context
+      dissenter ask "..." --ghost                         # run without saving anything
       dissenter ask "..." --config decisions/20260321/config.toml  # exact re-run
     """
     try:
@@ -279,7 +287,7 @@ def ask(
         from .synthesis import synthesize
 
     try:
-        all_rounds, final_text, synthesis_results = asyncio.run(_main(question, cfg, deep, user_context))
+        all_rounds, final_text, synthesis_results, decision_name = asyncio.run(_main(question, cfg, deep, user_context))
     except KeyboardInterrupt:
         from .wizard import exit_message
         err.print()
@@ -292,9 +300,21 @@ def ask(
         err.print()
         raise typer.Exit(1)
 
-    # Save outputs — everything lives under decisions/<timestamp>/
+    if ghost:
+        # Ghost mode — print the decision but save nothing
+        err.print()
+        err.print(Rule("[bold green]Done[/bold green] [dim](ghost mode — nothing saved)[/dim]"))
+        err.print()
+        out.print(final_text)
+        return
+
+    # Save outputs — everything lives under decisions/<timestamp>_<name>/
+    from .paths import ensure_dirs
+    ensure_dirs()
+
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = cfg.output_dir / ts
+    folder_name = f"{ts}_{decision_name}" if decision_name else ts
+    run_dir = cfg.output_dir / folder_name
     run_dir.mkdir(parents=True, exist_ok=True)
 
     for rr in all_rounds:
@@ -604,32 +624,21 @@ def uninstall(
     """
     _header("uninstall")
     import shutil
-    from platformdirs import user_config_dir, user_data_dir
+    from .paths import dissenter_home
 
-    # Deduplicate — on Mac/Windows data and config dirs are the same path
-    paths = list(dict.fromkeys([
-        Path(user_data_dir("dissenter")),
-        Path(user_config_dir("dissenter")),
-    ]))
+    home = dissenter_home()
 
     out.print("\nThis will permanently delete:")
-    for p in paths:
-        out.print(f"  [bold]{p}[/bold]")
+    out.print(f"  [bold]{home}[/bold]")
     out.print("\nTo also remove the package:")
     out.print("  [dim]uv tool uninstall dissenter[/dim]  or  [dim]pip uninstall dissenter[/dim]\n")
 
     if not yes:
         typer.confirm("Proceed?", abort=True)
 
-    removed = []
-    for p in paths:
-        if p.exists():
-            shutil.rmtree(p)
-            removed.append(str(p))
-
-    if removed:
-        for r in removed:
-            out.print(f"[green]✓[/green] Removed: {r}")
+    if home.exists():
+        shutil.rmtree(home)
+        out.print(f"[green]✓[/green] Removed: {home}")
     else:
         out.print("[dim]Nothing to remove.[/dim]")
 
@@ -777,4 +786,12 @@ async def _main(question: str, cfg: DissentConfig, deep: bool = False, user_cont
             await asyncio.sleep(4)
     final_text, synthesis_results = task.result()
 
-    return all_rounds, final_text, synthesis_results
+    # Generate a single-word name for the decision folder
+    from .synthesis import name_decision
+    import random
+    final_round = cfg.rounds[-1]
+    active = final_round.active_models
+    naming_model = random.choice(active)
+    decision_name = await name_decision(question, final_text, naming_model)
+
+    return all_rounds, final_text, synthesis_results, decision_name
