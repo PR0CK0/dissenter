@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [2.2.1] — 2026-03-30
+
+### Added
+- **`dissenter upgrade`** — self-upgrade to the latest PyPI version. Runs `uv tool install dissenter --force --no-cache` under the hood.
+
+---
+
 ## [2.2.0] — 2026-03-28
 
 ### Added

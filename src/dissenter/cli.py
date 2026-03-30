@@ -595,6 +595,33 @@ def uninstall(
 
 
 @app.command()
+def upgrade() -> None:
+    """Upgrade dissenter to the latest version from PyPI.
+
+    Examples:
+      dissenter upgrade
+    """
+    import subprocess
+    _header("upgrade")
+    err.print(f"  [dim]Current:[/dim] v{_VERSION}")
+    err.print()
+    try:
+        subprocess.run(
+            ["uv", "tool", "install", "dissenter", "--force", "--no-cache"],
+            check=True,
+        )
+    except FileNotFoundError:
+        err.print("[red]Error:[/red] `uv` not found on PATH. Install it first: https://docs.astral.sh/uv/")
+        raise typer.Exit(1)
+    except subprocess.CalledProcessError:
+        err.print("[red]Error:[/red] Upgrade failed. Try manually: uv tool install dissenter --force --no-cache")
+        raise typer.Exit(1)
+    err.print()
+    err.print("  [green]✓[/green] Upgraded. Run [bold]dissenter --version[/bold] to confirm.")
+    err.print()
+
+
+@app.command()
 def models() -> None:
     """Show detected local models, CLI tools, and API key env var status.
 

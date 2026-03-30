@@ -302,6 +302,16 @@ Database location:
 
 ---
 
+### `dissenter upgrade`
+
+Self-upgrade to the latest version from PyPI. No flags needed.
+
+```bash
+dissenter upgrade
+```
+
+---
+
 ### `dissenter uninstall`
 
 Remove all app data from this machine (database + config presets). Does not remove the package itself — for that, run `uv tool uninstall dissenter`.
