@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [3.0.0a2] — 2026-04-04
+
+### Added
+- **Codex CLI support** — `codex` (OpenAI) detected alongside `claude` and `gemini`. Models with `openai/` prefix auto-infer `auth = "cli"` and route through `codex exec -`. Works for both API key and CLI auth.
+
+---
+
 ## [3.0.0a1] — 2026-03-30
 
 ### Added

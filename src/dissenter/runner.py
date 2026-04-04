@@ -179,6 +179,7 @@ _PROVIDER_CLI: dict[str, str] = {
     "anthropic": "claude",
     "gemini": "gemini",
     "google": "gemini",
+    "openai": "codex",
 }
 
 
@@ -196,11 +197,12 @@ async def _query_model_cli(cfg: ModelConfig, prompt: str) -> str:
             "Set cli_command in config (e.g. cli_command = \"claude\")."
         )
 
-    # All CLIs: pass prompt via stdin with non-interactive/print flag
-    # claude: `claude --print`   gemini: `gemini`  (add more as needed)
+    # Per-CLI flags for non-interactive mode with stdin
     cli_args: list[str] = [cli]
     if cli == "claude":
         cli_args += ["--print"]
+    elif cli == "codex":
+        cli_args += ["exec", "-"]  # read prompt from stdin, non-interactive
 
     proc = await asyncio.create_subprocess_exec(
         *cli_args,

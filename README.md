@@ -546,6 +546,7 @@ Auto-detected CLI commands by provider prefix:
 |---|---|
 | `anthropic/` | `claude` |
 | `gemini/` or `google/` | `gemini` |
+| `openai/` | `codex` |
 | anything else | set `cli_command` explicitly |
 
 ### Same model, multiple roles

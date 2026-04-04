@@ -11,6 +11,7 @@ _PROVIDER_CLI: dict[str, str] = {
     "anthropic": "claude",
     "gemini": "gemini",
     "google": "gemini",
+    "openai": "codex",
 }
 
 

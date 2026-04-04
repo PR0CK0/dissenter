@@ -106,6 +106,7 @@ def detect_clis() -> dict[str, str | None]:
     return {
         "claude": shutil.which("claude"),
         "gemini": shutil.which("gemini"),
+        "codex": shutil.which("codex"),
     }
 
 
@@ -123,5 +124,7 @@ def infer_auth(model_id: str, clis: dict[str, str | None]) -> str:
     if provider == "anthropic" and clis.get("claude"):
         return "cli"
     if provider in ("gemini", "google") and clis.get("gemini"):
+        return "cli"
+    if provider == "openai" and clis.get("codex"):
         return "cli"
     return "api"
