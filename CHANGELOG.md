@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [3.0.1] — 2026-04-04
+
+### Changed
+- **CI: auto-release on tag push** — GitHub Releases are now created automatically when a version tag is pushed. Pre-release tags (`a`, `b`, `rc`, `dev`) are flagged accordingly. No more manual `gh release create`.
+
+---
+
 ## [3.0.0] — 2026-04-04
 
 ### Added
