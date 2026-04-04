@@ -30,6 +30,14 @@ _update_thread = start_update_check()
 if "--help" in sys.argv or "-h" in sys.argv:
     _help_cmd = next((a for a in sys.argv[1:] if not a.startswith("-")), "help")
     Console(stderr=True).print(Rule(f"[bold]dissenter[/bold] [dim]v{_VERSION} — {_help_cmd}[/dim]"))
+    # Print hint after Typer's help output (top-level only)
+    if _help_cmd == "help":
+        import atexit
+        atexit.register(
+            lambda: Console(stderr=True).print(
+                "\n [bold green]Run 'dissenter COMMAND --help' for full details and flags on any command.[/bold green]\n"
+            )
+        )
 
 from .detect import (
     KNOWN_PROVIDERS, detect_api_keys, detect_clis, detect_ollama_models,
@@ -39,7 +47,10 @@ from .detect import (
 # so that models / history / config / init are instant
 
 app = typer.Typer(
-    help="Run multiple LLMs through a structured debate for complex questions. Surface where they disagree. Synthesize a decision.",
+    help=(
+        "Run multiple LLMs through a structured debate for complex questions. "
+        "Surface where they disagree. Synthesize a decision."
+    ),
     add_completion=False,
 )
 
@@ -644,26 +655,43 @@ def uninstall(
 
 
 @app.command()
-def upgrade() -> None:
-    """Upgrade dissenter to the latest version from PyPI.
+def upgrade(
+    local: bool = typer.Option(
+        False, "--local", "-l",
+        help="Install from current directory instead of PyPI (for development)",
+    ),
+) -> None:
+    """Upgrade dissenter to the latest version.
+
+    By default pulls from PyPI. Use --local to rebuild from your local source tree.
 
     Examples:
-      dissenter upgrade
+      dissenter upgrade              # latest from PyPI
+      dissenter upgrade --local      # rebuild from cwd (dev workflow)
     """
     import subprocess
     _header("upgrade")
     err.print(f"  [dim]Current:[/dim] v{_VERSION}")
     err.print()
+
+    if local:
+        source = "."
+        err.print("  [dim]Source:[/dim]  local (current directory)")
+    else:
+        source = "dissenter"
+        err.print("  [dim]Source:[/dim]  PyPI")
+    err.print()
+
     try:
         subprocess.run(
-            ["uv", "tool", "install", "dissenter", "--force", "--no-cache"],
+            ["uv", "tool", "install", source, "--force", "--no-cache"],
             check=True,
         )
     except FileNotFoundError:
         err.print("[red]Error:[/red] `uv` not found on PATH. Install it first: https://docs.astral.sh/uv/")
         raise typer.Exit(1)
     except subprocess.CalledProcessError:
-        err.print("[red]Error:[/red] Upgrade failed. Try manually: uv tool install dissenter --force --no-cache")
+        err.print(f"[red]Error:[/red] Upgrade failed. Try manually: uv tool install {source} --force --no-cache")
         raise typer.Exit(1)
     err.print()
     err.print("  [green]✓[/green] Upgraded. Run [bold]dissenter --version[/bold] to confirm.")

@@ -403,10 +403,15 @@ Database location:
 
 ### `dissenter upgrade`
 
-Self-upgrade to the latest version from PyPI. No flags needed.
+Self-upgrade to the latest version. Pulls from PyPI by default, or rebuilds from local source with `--local`.
+
+| Flag | Description |
+|------|-------------|
+| `--local`, `-l` | Install from current directory instead of PyPI (dev workflow) |
 
 ```bash
-dissenter upgrade
+dissenter upgrade              # latest from PyPI
+dissenter upgrade --local      # rebuild from local source tree
 ```
 
 ---
