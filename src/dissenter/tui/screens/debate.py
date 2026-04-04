@@ -79,6 +79,8 @@ class DebateScreen(Screen):
         self._prior_id = prior_id
         self._deep = deep
         self._message_index = 0
+        self._cancelled = False
+        self._debate_loop = None  # asyncio loop used by worker thread
 
     def compose(self) -> ComposeResult:
         yield Static("Debate in progress...", id="debate-header")
@@ -175,19 +177,24 @@ class DebateScreen(Screen):
 
     def _log_progress(self, event: str, data: dict) -> None:
         """Called from the debate thread — posts updates to the TUI progress log."""
+        try:
+            app = self.app
+        except Exception:
+            return  # screen already dismissed
+
         if event == "round_start":
             msg = f"[bold]── Round {data['round_num']} of {data['total']}: {data['name']} ({data['n_models']} models) ──[/bold]"
-            self.app.call_from_thread(self._append_log, msg)
+            app.call_from_thread(self._append_log, msg)
         elif event == "model_start":
             msg = f"  [yellow]●[/yellow] {data['model_id']} [dim]({data['role']})[/dim] — running..."
-            self.app.call_from_thread(self._append_log, msg)
+            app.call_from_thread(self._append_log, msg)
         elif event == "model_done":
             if data["success"]:
                 conf = f" · confidence {data['confidence']}/10" if data.get("confidence") else ""
                 msg = f"  [green]✓[/green] {data['model_id']} [dim]({data['role']})[/dim] — {data['elapsed']:.0f}s · ~{data['word_count']} words{conf}"
             else:
                 msg = f"  [red]✗[/red] {data['model_id']} [dim]({data['role']})[/dim] — {data.get('error', 'failed')}"
-            self.app.call_from_thread(self._append_log, msg)
+            app.call_from_thread(self._append_log, msg)
 
     def _append_log(self, text: str) -> None:
         try:
@@ -204,6 +211,10 @@ class DebateScreen(Screen):
         from dissenter.runner import run_all_rounds
         from dissenter.synthesis import synthesize
 
+        # Create a persistent loop for this thread so we can cancel its tasks
+        loop = asyncio.new_event_loop()
+        self._debate_loop = loop
+
         try:
             # Load config
             if self._config_path == "__quick__":
@@ -215,29 +226,41 @@ class DebateScreen(Screen):
 
                 cfg = load_config(Path(self._config_path) if self._config_path else None)
 
+            if self._cancelled:
+                return
+
             # Build user context from files
             user_context = self._load_user_context(self._context_paths)
 
             # Run all debate rounds with progress callback
-            all_rounds = asyncio.run(
+            all_rounds = loop.run_until_complete(
                 run_all_rounds(
                     cfg, self._question, deep=self._deep,
                     user_context=user_context, on_progress=self._log_progress,
                 )
             )
 
+            if self._cancelled:
+                return
+
             # Synthesize ADR
-            self.app.call_from_thread(self._append_log, "\n[bold]── Synthesizing decision ──[/bold]")
-            self.app.call_from_thread(self._show_synthesizing)
-            final_text, results = asyncio.run(
+            try:
+                self.app.call_from_thread(self._append_log, "\n[bold]── Synthesizing decision ──[/bold]")
+                self.app.call_from_thread(self._show_synthesizing)
+            except Exception:
+                pass
+            final_text, results = loop.run_until_complete(
                 synthesize(self._question, all_rounds, cfg)
             )
+
+            if self._cancelled:
+                return
 
             # Generate a single-word name for the decision
             import random
             from dissenter.synthesis import name_decision
             naming_model = random.choice(cfg.rounds[-1].active_models)
-            decision_name = asyncio.run(
+            decision_name = loop.run_until_complete(
                 name_decision(self._question, final_text, naming_model)
             )
 
@@ -280,11 +303,23 @@ class DebateScreen(Screen):
                 pass
 
             # Show result
-            self.app.call_from_thread(self._show_result, final_text)
+            if not self._cancelled:
+                try:
+                    self.app.call_from_thread(self._show_result, final_text)
+                except Exception:
+                    pass
 
+        except asyncio.CancelledError:
+            pass  # expected when user navigates back
         except Exception as exc:
-            error_msg = str(exc)
-            self.app.call_from_thread(self._show_error, error_msg)
+            if not self._cancelled:
+                try:
+                    self.app.call_from_thread(self._show_error, str(exc))
+                except Exception:
+                    pass
+        finally:
+            loop.close()
+            self._debate_loop = None
 
     def _show_synthesizing(self) -> None:
         """Update the loading message to indicate synthesis phase."""
@@ -341,5 +376,13 @@ class DebateScreen(Screen):
             pass
 
     def action_go_back(self) -> None:
-        """Return to the main app screen and refresh history."""
+        """Return to the main app screen — cancel any running debate."""
+        self._cancelled = True
+        # Cancel all tasks on the worker's asyncio loop if it's still running
+        if self._debate_loop and self._debate_loop.is_running():
+            for task in __import__("asyncio").all_tasks(self._debate_loop):
+                self._debate_loop.call_soon_threadsafe(task.cancel)
+        # Cancel textual workers
+        for worker in self.workers:
+            worker.cancel()
         self.dismiss(True)
