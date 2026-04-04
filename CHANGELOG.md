@@ -2,6 +2,32 @@
 
 All notable changes to this project are documented here.
 
+## [3.0.0] — 2026-04-04
+
+### Added
+- **Inline config preview** — clicking a config in Saved Configs shows its TOML contents in a scrollable preview area
+- **Use as template** — load any saved config into the Create Config builder for editing
+- **Reset button** — clear the config builder back to a 2-round default
+- **Delete from history** — delete decisions from the history table, with sidebar refresh
+- **View all history** — clickable sidebar link to the full history table
+- **`dissenter upgrade --local`** — rebuild from local source tree for development
+- **Quick mode Ollama check** — error toast if no Ollama models detected before starting debate
+- **Scrollable config tab** — config tab in decision viewer now scrollable for long configs
+
+### Fixed
+- **Clean exit mid-debate** — no more hanging on orphaned aiohttp/litellm threads
+- **Sidebar history refresh** — async remove/mount prevents duplicate ID failures after delete
+- **Single-click config preview** — uses RowHighlighted instead of RowSelected (no double-click needed)
+
+### Changed
+- **Help key** — changed from `?` (shift required) to `/`
+- **Help hint** — `dissenter --help` now shows green hint to run `COMMAND --help`
+- Removed AI config generation from TUI (stubbed with TODOs for future)
+- Removed Active Config page (redundant with Saved Configs)
+- Removed Esc-to-quit (conflicted with Esc-to-back in debate screen)
+
+---
+
 ## [3.0.0a2] — 2026-04-04
 
 ### Added
