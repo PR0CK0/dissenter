@@ -25,7 +25,8 @@ class DissenterApp(App):
         Binding("n", "switch('content-ask')", "Ask", show=True),
         Binding("g", "switch('content-generate')", "Generate", show=True),
         Binding("h", "switch('content-history')", "History", show=True),
-        Binding("q", "quit", "Quit", show=True),
+        Binding("q", "quit", "Quit", show=True, key_display="q/Esc"),
+        Binding("escape", "quit", "Quit", show=False),
         Binding("question_mark", "toggle_help", "Help", show=True, key_display="?"),
     ]
 
@@ -38,10 +39,10 @@ class DissenterApp(App):
                 yield VerticalScroll(AskForm(id="ask-form"), id="content-ask")
                 yield VerticalScroll(ConfigBuilder(id="config-builder"), id="content-create-config")
                 yield VerticalScroll(GenerateForm(id="generate-form"), id="content-generate")
-                yield VerticalScroll(HistoryTable(id="history-table"), id="content-history")
+                yield HistoryTable(id="content-history")
                 yield VerticalScroll(DecisionViewer(id="decision-viewer"), id="content-decision")
                 yield VerticalScroll(ModelsPanel(id="models-panel"), id="content-models")
-                yield VerticalScroll(ConfigsList(id="configs-list"), id="content-configs-list")
+                yield ConfigsList(id="content-configs-list")
         yield Footer()
 
     def _build_home(self) -> Static:
@@ -97,7 +98,7 @@ class DissenterApp(App):
     def on_mount(self) -> None:
         """Load data into widgets that need it on startup."""
         try:
-            self.query_one("#history-table", HistoryTable).load_runs()
+            self.query_one("#content-history", HistoryTable).load_runs()
         except Exception:
             pass
 
@@ -111,13 +112,10 @@ class DissenterApp(App):
             viewer.load_decision(run_id)
             switcher.current = "content-decision"
         elif event.item_type == "history":
-            self.query_one("#history-table", HistoryTable).load_runs()
+            self.query_one("#content-history", HistoryTable).load_runs()
             switcher.current = "content-history"
         elif event.item_type == "models":
             switcher.current = "content-models"
-        elif event.item_type == "config":
-            self.query_one("#config-tree", ConfigTree).load_config()
-            switcher.current = "content-config"
         else:
             content_id = {
                 "home": "content-home",
@@ -153,7 +151,7 @@ class DissenterApp(App):
         except Exception:
             pass
         try:
-            self.query_one("#history-table", HistoryTable).load_runs()
+            self.query_one("#content-history", HistoryTable).load_runs()
         except Exception:
             pass
 
@@ -171,7 +169,7 @@ class DissenterApp(App):
         # Refresh data when switching to history
         if content_id == "content-history":
             try:
-                self.query_one("#history-table", HistoryTable).load_runs()
+                self.query_one("#content-history", HistoryTable).load_runs()
             except Exception:
                 pass
 
@@ -206,6 +204,13 @@ class DissenterApp(App):
 
         out_path.write_text("\n".join(lines), encoding="utf-8")
         self.notify(f"Saved: {out_path}", title="Config created")
+
+    async def on_configs_list_use_as_template(self, event: ConfigsList.UseAsTemplate) -> None:
+        """Load config into the builder and switch to it."""
+        builder = self.query_one("#config-builder", ConfigBuilder)
+        await builder.load_from_config(event.path)
+        self.query_one("#content-switcher", ContentSwitcher).current = "content-create-config"
+        self.notify(f"Loaded {event.path.name} as template — edit and save.", title="Template")
 
     def action_toggle_help(self) -> None:
         """Toggle help overlay."""

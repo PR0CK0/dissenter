@@ -145,6 +145,15 @@ class AskForm(Vertical):
         config_val = config_select.value
         config_path: str | None = None
         if config_val == "__quick__":
+            from dissenter.detect import detect_ollama_models
+            if not detect_ollama_models():
+                self.app.notify(
+                    "Quick mode requires local Ollama models.\n"
+                    "Install Ollama and run: ollama pull mistral",
+                    severity="error",
+                    title="No Ollama models detected",
+                )
+                return
             config_path = "__quick__"
         elif config_val is not None:
             config_path = str(config_val)
