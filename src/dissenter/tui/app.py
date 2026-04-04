@@ -9,7 +9,8 @@ from .widgets.sidebar import Sidebar
 from .widgets.ask_form import AskForm
 from .widgets.config_builder import ConfigBuilder
 from .widgets.configs_list import ConfigsList
-from .widgets.generate_form import GenerateForm
+# TODO: re-add when AI config generation is implemented
+# from .widgets.generate_form import GenerateForm
 from .widgets.history_table import HistoryTable
 from .widgets.decision_viewer import DecisionViewer
 from .widgets.models_panel import ModelsPanel
@@ -23,11 +24,11 @@ class DissenterApp(App):
 
     BINDINGS = [
         Binding("n", "switch('content-ask')", "Ask", show=True),
-        Binding("g", "switch('content-generate')", "Generate", show=True),
+        # TODO: re-add when AI config generation is implemented
+        # Binding("g", "switch('content-generate')", "Generate", show=True),
         Binding("h", "switch('content-history')", "History", show=True),
-        Binding("q", "quit", "Quit", show=True, key_display="q/Esc"),
-        Binding("escape", "quit", "Quit", show=False),
-        Binding("question_mark", "toggle_help", "Help", show=True, key_display="?"),
+        Binding("q", "quit", "Quit", show=True),
+        Binding("slash", "toggle_help", "Help", show=True, key_display="/"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -38,7 +39,8 @@ class DissenterApp(App):
                 yield VerticalScroll(self._build_home(), id="content-home")
                 yield VerticalScroll(AskForm(id="ask-form"), id="content-ask")
                 yield VerticalScroll(ConfigBuilder(id="config-builder"), id="content-create-config")
-                yield VerticalScroll(GenerateForm(id="generate-form"), id="content-generate")
+                # TODO: re-add when AI config generation is implemented
+                # yield VerticalScroll(GenerateForm(id="generate-form"), id="content-generate")
                 yield HistoryTable(id="content-history")
                 yield VerticalScroll(DecisionViewer(id="decision-viewer"), id="content-decision")
                 yield VerticalScroll(ModelsPanel(id="models-panel"), id="content-models")
@@ -89,8 +91,8 @@ class DissenterApp(App):
             "  [dim]Set DISSENTER_HOME to change the base path.[/dim]",
             "",
             "  Press [bold]n[/bold] to ask a question",
-            "  Press [bold]g[/bold] to generate a config",
-            "  Press [bold]?[/bold] for help",
+            "  Press [bold]h[/bold] to view history",
+            "  Press [bold]/[/bold] for help",
             "",
         ]
         return Static("\n".join(lines), id="home-content", markup=True)
@@ -120,7 +122,6 @@ class DissenterApp(App):
             content_id = {
                 "home": "content-home",
                 "ask": "content-ask",
-                "generate": "content-generate",
                 "create-config": "content-create-config",
                 "configs-list": "content-configs-list",
             }.get(event.item_type, "content-home")
@@ -144,10 +145,10 @@ class DissenterApp(App):
         )
         self.push_screen(screen, callback=self._on_debate_done)
 
-    def _on_debate_done(self, result: object) -> None:
+    async def _on_debate_done(self, result: object) -> None:
         """Called when the debate screen is dismissed — refresh all data."""
         try:
-            self.query_one("#sidebar", Sidebar).refresh_history()
+            await self.query_one("#sidebar", Sidebar).refresh_history()
         except Exception:
             pass
         try:
@@ -215,6 +216,6 @@ class DissenterApp(App):
     def action_toggle_help(self) -> None:
         """Toggle help overlay."""
         self.notify(
-            "n Ask  g Generate  h History  q Quit  ? Help",
+            "n Ask  h History  q Quit  / Help",
             title="Keybindings",
         )
