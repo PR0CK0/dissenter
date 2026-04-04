@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [3.0.2] — 2026-04-04
+
+### Changed
+- **README overhaul** — updated for v3.0: centralized storage paths, ADR output schema, auto-named decision folders, new keybindings, current TUI views, `--ghost` flag, demo screenshot
+- **CI: auto-release on tag push** — workflow creates GitHub Release + publishes to PyPI on any `v*` tag
+
+---
+
 ## [3.0.1] — 2026-04-04
 
 ### Changed

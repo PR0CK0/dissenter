@@ -15,6 +15,10 @@ dissenter                    # launch the TUI
 dissenter ask "Should I use Kafka or a Postgres outbox pattern?"  # CLI mode
 ```
 
+![dissenter CLI debate](docs/demo.png)
+
+![dissenter TUI](docs/demo-tui.png)
+
 ---
 
 ## Table of Contents
@@ -74,21 +78,21 @@ dissenter ask "..." --quick
 │  NEW              │  Welcome to dissenter                    │
 │  ───              │  Run multiple LLMs through structured    │
 │  ▸ Ask a question │  debate. Surface where they disagree.    │
-│  ▸ Generate config│  Synthesize a decision.                  │
+│  ▸ Create config  │  Synthesize a decision.                  │
 │                   │                                          │
 │  HISTORY          │  Past decisions:  12                     │
 │  ───────          │  Available models: 14                    │
-│  ▸ 03-28 Kafka..  │                                          │
-│  ▸ 03-27 Redis..  │  Press n to ask a question               │
-│  ▸ 03-26 K8s..   │  Press g to generate a config            │
-│                   │  Press ? for help                        │
+│  ▸ View all       │                                          │
+│  ▸ 03-28 Kafka..  │  Press n to ask a question               │
+│  ▸ 03-27 Redis..  │  Press h to view history                 │
+│                   │  Press / for help                        │
 │  ENVIRONMENT      │                                          │
 │  ───────────      │                                          │
 │  ▸ Models & keys  │                                          │
-│  ▸ Active config  │                                          │
+│  ▸ Saved configs  │                                          │
 │                   │                                          │
 ├───────────────────┴──────────────────────────────────────────┤
-│  n Ask  g Generate  h History  q Quit  ? Help                │
+│  n Ask  h History  q Quit  / Help                            │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -96,24 +100,23 @@ dissenter ask "..." --quick
 
 | View | How to get there | What it shows |
 |------|-----------------|---------------|
-| **Home** | Launch `dissenter` | Quick stats, keyboard shortcuts |
+| **Home** | Launch `dissenter` | Quick stats, storage paths, keyboard shortcuts |
 | **Ask** | Press `n` | Question input, config selector, context files, `--deep` toggle, Start button |
-| **Debate progress** | Press Start | Loading animation with rotating thematic messages, then the ADR in a markdown viewer |
-| **History** | Press `h` or click a sidebar history item | DataTable of all past runs — click any to view the full decision |
-| **Decision viewer** | Click a history row | Full ADR rendered as markdown, with Continue / Re-run / Back buttons |
+| **Debate progress** | Press Start | Live model progress (per-model status, timing, confidence), then the ADR in a markdown viewer |
+| **History** | Press `h` or click "View all history" | DataTable of all past runs with delete button — click any to view |
+| **Decision viewer** | Click a history row | Tabbed view (Prompt / ADR / Config) with Continue / Re-run / Open folder / Back buttons |
+| **Create config** | Click "Create config" in sidebar | Visual config builder — add rounds, models, roles, auth, timeouts. Reset or load from template |
+| **Saved configs** | Click "Saved configs" in sidebar | Browse configs from `~/Documents/dissenter/configs/` and cwd, inline TOML preview, Use as template / Edit / Delete |
 | **Models & keys** | Click "Models & keys" in sidebar | Detected Ollama models, CLI tools, API key status |
-| **Config** | Click "Active config" in sidebar | Tree view of the loaded config (rounds, models, roles, auth) |
-| **Generate** | Press `g` | Natural-language prompt input for LLM-powered config generation |
 
 ### TUI keybindings
 
 | Key | Action |
 |-----|--------|
 | `n` | New debate (ask form) |
-| `g` | Generate config |
 | `h` | History browser |
 | `q` | Quit |
-| `?` | Help |
+| `/` | Help |
 | `Escape` | Back (from debate screen) |
 
 The TUI and CLI share the same engine. All CLI commands still work for scripting and CI — the TUI is an interactive layer on top.
@@ -303,7 +306,7 @@ Run a debate and save the decision.
 | Flag | Description |
 |------|-------------|
 | _(no flags)_ | Load `dissenter.toml` from the current directory |
-| `--config <path\|name>` | Path to a TOML file, or a named preset (`~/.config/dissenter/<name>.toml`) |
+| `--config <path\|name>` | Path to a TOML file, or a named preset (`~/Documents/dissenter/configs/<name>.toml`) |
 | `--quick` | Auto-detect all installed Ollama models and run immediately |
 | `--model <id[@role]>` | Add a model inline — repeatable, bypasses config file |
 | `--chairman <id>` | Set the final-round chairman when using `--model` |
@@ -311,6 +314,7 @@ Run a debate and save the decision.
 | `--deep` | Inject a mutual critique round before synthesis — each model critiques the others' arguments, then the chairman synthesizes everything |
 | `--context <file>`, `-x` | Inject a reference file as context for all models — repeatable for multiple files |
 | `--prior <id>`, `-p` | Inject a past decision (by ID from `dissenter history`) as context |
+| `--ghost` | Run the debate but don't save anything — no files, no database entry |
 
 ```bash
 dissenter ask "Should I use Kafka or Postgres outbox?"
@@ -394,10 +398,7 @@ Browse and search past decisions. Every `dissenter ask` run is automatically sav
 | `--clear` | Delete all run history (prompts for confirmation) |
 | `--yes`, `-y` | Skip confirmation when using `--clear` |
 
-Database location:
-- Mac: `~/Library/Application Support/dissenter/dissenter.db`
-- Linux: `~/.local/share/dissenter/dissenter.db`
-- Windows: `%LOCALAPPDATA%\dissenter\dissenter.db`
+Database location: `~/Documents/dissenter/dissenter.db` (or `$DISSENTER_HOME/dissenter.db`)
 
 ---
 
@@ -428,7 +429,7 @@ Remove all app data from this machine (database + config presets). Does not remo
 
 ## Configuration
 
-Edit `dissenter.toml` in the project directory. Pass `--config <path>` to override. Bare names resolve to `~/.config/dissenter/<name>.toml`.
+Edit `dissenter.toml` in the project directory. Pass `--config <path>` to override. Bare names resolve to `~/Documents/dissenter/configs/<name>.toml`.
 
 ### Minimal config
 
@@ -634,26 +635,65 @@ prompt      = "Your role is security auditor. Identify the attack surface, likel
 
 ## Output
 
-Each run produces a timestamped directory:
+All data lives under `~/Documents/dissenter/` by default (override with `DISSENTER_HOME` env var or `~/.config/dissenter/home.txt`).
+
+Each run produces an auto-named directory — the chairman picks a single-word topic name:
 
 ```
-decisions/
-  20260320_143022/
-    decision.md              <- the ADR (commit this)
-    config.toml              <- exact config snapshot for re-runs
-    round_1_debate/
-      anthropic_claude-sonnet-4-6__devils_advocate.md
-      gemini_gemini-2.0-flash__pragmatist.md
-      ollama_mistral__skeptic.md
-    round_2_refine/
-      gemini_gemini-2.0-flash__analyst.md
-    round_3_final/
-      anthropic_claude-opus-4-6__chairman.md
+~/Documents/dissenter/
+  decisions/
+    20260320_143022_kafka/
+      decision.md              <- the ADR (commit this)
+      config.toml              <- exact config snapshot for re-runs
+      round_1_debate/
+        anthropic_claude-sonnet-4-6__devils_advocate.md
+        gemini_gemini-2.0-flash__pragmatist.md
+        ollama_mistral__skeptic.md
+      round_2_refine/
+        gemini_gemini-2.0-flash__analyst.md
+      round_3_final/
+        anthropic_claude-opus-4-6__chairman.md
+  configs/                     <- named presets
+  dissenter.db                 <- SQLite history
 ```
 
-The decision file path is printed at the end of each run. The ADR follows a structured format: Context, Consensus, Disagreements, Confidence Signals, Options table, Decision, Consequences, Mitigations, Open Questions.
+The decision file path is printed at the end of each run. The ADR follows this exact structure:
 
-Every run is automatically saved to a local SQLite database, browsable via `dissenter history` or the TUI.
+```
+# ADR: [concise title derived from the question]
+
+Date / Status / Debate rounds / Models consulted
+
+## Context
+  Problem statement and why this decision matters.
+
+## Consensus
+  What most/all models agreed on — high-confidence signals.
+
+## Disagreements
+  Where models diverged, why it matters, what context would resolve it.
+
+## Confidence Signals
+
+  | Model | Role | Score (1-10) | Would change if |
+
+## Options Considered
+
+  | Option | Pros | Cons | Risk Level |
+
+## Decision
+  The recommendation in one clear sentence, followed by rationale.
+
+## Consequences
+  ### Positive
+  ### Risks
+  ### Mitigations
+
+## Open Questions
+  Points requiring your specific context that no model could know.
+```
+
+Every run is automatically saved to the SQLite database, browsable via `dissenter history` or the TUI.
 
 ---
 
@@ -740,10 +780,16 @@ dissenter ask "Should I use Redis or Postgres for session storage?" --config dis
 - [x] `dissenter generate` — LLM-powered config generation from a natural-language prompt with validation + retry loop
 - [x] Pre-flight credential check — validates all model availability before starting a debate
 - [x] Context injection — `--context <file>` and `--prior <id>` for reference material in debates
-- [x] Textual TUI — full terminal UI with sidebar navigation, debate progress, history browser, decision viewer, models panel, config inspector
+- [x] Textual TUI — full terminal UI with sidebar navigation, debate progress, history browser, decision viewer, models panel, config builder
+- [x] Centralized storage — `~/Documents/dissenter/` with auto-migration from old locations
+- [x] Decision auto-naming — chairman picks a single-word topic name for folder names
+- [x] Ghost mode (`--ghost`) — run without saving anything
+- [x] Codex CLI support — `openai/` models via `codex exec -`
+- [x] `dissenter upgrade --local` — rebuild from local source for dev workflow
+- [x] Auto-release on tag push — CI creates GitHub Release + publishes to PyPI
+- [x] Live model progress in TUI — per-model status, timing, word count, confidence
 
 **Planned:**
 - [ ] Disagreement classifier: factual vs. trade-off vs. context-dependent
 - [ ] Dynamic role inference: infer relevant roles from question type (security, performance, cost, maintainability)
-- [ ] Live round-by-round progress in TUI (granular model completion updates instead of spinner)
-- [ ] TUI config editor (edit TOML inline from the terminal UI)
+- [ ] AI config generation in TUI (stubbed, not yet wired)
