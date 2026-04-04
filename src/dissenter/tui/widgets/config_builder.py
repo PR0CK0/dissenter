@@ -274,6 +274,7 @@ class ConfigBuilder(VerticalScroll):
         with Horizontal(id="builder-actions"):
             yield Button("+ Add debate round", id="add-round-btn", variant="default")
             yield Button("Save config", id="save-config-btn", variant="primary")
+            yield Button("Reset", id="reset-config-btn", variant="error")
         yield Static("", id="builder-error")
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -282,6 +283,25 @@ class ConfigBuilder(VerticalScroll):
             event.stop()
         elif event.button.id == "save-config-btn":
             self._save()
+        elif event.button.id == "reset-config-btn":
+            await self._reset()
+
+    async def _reset(self) -> None:
+        """Clear the builder back to the default 2-round template."""
+        container = self.query_one("#builder-rounds")
+        for block in list(container.query(RoundBlock)):
+            await block.remove()
+
+        self.query_one("#config-name-input", Input).value = ""
+
+        await container.mount(RoundBlock(1, "debate", is_final=False, model_choices=self._model_choices))
+        await container.mount(RoundBlock(2, "final", is_final=True, model_choices=self._model_choices))
+        self._round_counter = 2
+
+        error_label = self.query_one("#builder-error", Static)
+        error_label.styles.display = "none"
+
+        self.app.notify("Config builder reset", title="Reset")
 
     async def _add_round(self) -> None:
         """Add a new debate round before the final round."""
@@ -317,6 +337,78 @@ class ConfigBuilder(VerticalScroll):
                 header.update(f"Round {i}{suffix}")
             except Exception:
                 pass
+
+    async def load_from_config(self, path: "Path") -> None:
+        """Parse a TOML config and rebuild the builder UI from it."""
+        import tomllib
+        from pathlib import Path as _P
+
+        try:
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+        except Exception as e:
+            self.app.notify(f"Failed to parse: {e}", severity="error")
+            return
+
+        rounds = data.get("rounds", [])
+        if not rounds:
+            self.app.notify("Config has no rounds", severity="warning")
+            return
+
+        # Set the config name from filename (strip dissenter_ prefix and .toml suffix)
+        name_input = self.query_one("#config-name-input", Input)
+        stem = path.stem
+        if stem.startswith("dissenter_"):
+            stem = stem[len("dissenter_"):]
+        name_input.value = stem
+
+        # Clear existing round blocks
+        container = self.query_one("#builder-rounds")
+        for block in list(container.query(RoundBlock)):
+            await block.remove()
+
+        # Rebuild rounds from parsed data
+        if not self._model_choices:
+            self._model_choices = _detect_model_choices()
+
+        for i, rnd in enumerate(rounds):
+            is_final = i == len(rounds) - 1
+            name = rnd.get("name", f"round_{i + 1}")
+            block = RoundBlock(
+                i + 1, name, is_final=is_final, model_choices=self._model_choices,
+            )
+            await container.mount(block)
+
+            # Replace the default model row with the actual models from config
+            models = rnd.get("models", [])
+            if models:
+                model_list = block.query_one(".model-list")
+                # Remove the default ModelRow that compose() created
+                for default_row in list(model_list.query(ModelRow)):
+                    await default_row.remove()
+
+                for m in models:
+                    role = m.get("role", "chairman" if is_final else "analyst")
+                    auth = m.get("auth", "api")
+                    row = ModelRow(self._model_choices, role=role, auth=auth)
+                    await model_list.mount(row)
+
+                    # Set the model select (or custom input if not in choices)
+                    model_id = m.get("id", "")
+                    known_ids = {v for _, v in self._model_choices if v != "__custom__"}
+                    model_select = row.query_one(".model-select", Select)
+                    if model_id in known_ids:
+                        model_select.value = model_id
+                    else:
+                        model_select.value = "__custom__"
+                        custom_input = row.query_one(".model-custom-input", Input)
+                        custom_input.value = model_id
+                        custom_input.styles.display = "block"
+
+                    # Set timeout
+                    timeout = m.get("timeout", 180)
+                    row.query_one(".timeout-input", Input).value = str(timeout)
+
+        self._round_counter = len(rounds)
 
     def _save(self) -> None:
         error_label = self.query_one("#builder-error", Static)
