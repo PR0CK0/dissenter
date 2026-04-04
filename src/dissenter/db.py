@@ -134,6 +134,26 @@ def list_runs(
     return [dict(row) for row in rows]
 
 
+def delete_run(run_id: int, db_path: Path | None = None) -> None:
+    """Delete a run and its associated rounds and model outputs."""
+    if db_path is None:
+        db_path = get_db_path()
+    init_db(db_path)
+
+    with _connect(db_path) as conn:
+        # Foreign keys are ON, but delete children explicitly for clarity
+        round_ids = [
+            r["id"]
+            for r in conn.execute(
+                "SELECT id FROM rounds WHERE run_id = ?", (run_id,)
+            ).fetchall()
+        ]
+        for rid in round_ids:
+            conn.execute("DELETE FROM model_outputs WHERE round_id = ?", (rid,))
+        conn.execute("DELETE FROM rounds WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM runs WHERE id = ?", (run_id,))
+
+
 def get_run(run_id: int, db_path: Path | None = None) -> dict | None:
     """Return a full run with nested rounds and model outputs, or None."""
     if db_path is None:
