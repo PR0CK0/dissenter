@@ -13,7 +13,6 @@ from .widgets.generate_form import GenerateForm
 from .widgets.history_table import HistoryTable
 from .widgets.decision_viewer import DecisionViewer
 from .widgets.models_panel import ModelsPanel
-from .widgets.config_tree import ConfigTree
 
 
 class DissenterApp(App):
@@ -42,7 +41,6 @@ class DissenterApp(App):
                 yield VerticalScroll(HistoryTable(id="history-table"), id="content-history")
                 yield VerticalScroll(DecisionViewer(id="decision-viewer"), id="content-decision")
                 yield VerticalScroll(ModelsPanel(id="models-panel"), id="content-models")
-                yield VerticalScroll(ConfigTree("dissenter", id="config-tree"), id="content-config")
                 yield VerticalScroll(ConfigsList(id="configs-list"), id="content-configs-list")
         yield Footer()
 
@@ -100,10 +98,6 @@ class DissenterApp(App):
         """Load data into widgets that need it on startup."""
         try:
             self.query_one("#history-table", HistoryTable).load_runs()
-        except Exception:
-            pass
-        try:
-            self.query_one("#config-tree", ConfigTree).load_config()
         except Exception:
             pass
 

@@ -55,7 +55,6 @@ class Sidebar(Container):
         yield Static("ENVIRONMENT", classes="sidebar-section-header")
         yield ListView(
             SidebarItem("Models & keys", "models", classes="sidebar-item"),
-            SidebarItem("Active config", "config", classes="sidebar-item"),
             SidebarItem("Saved configs", "configs-list", classes="sidebar-item"),
             id="nav-env",
             classes="sidebar-list",
