@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Button, MarkdownViewer, Static, TabbedContent, TabPane
 
@@ -51,7 +51,8 @@ class DecisionViewer(Vertical):
             with TabPane("ADR", id="dv-tab-adr"):
                 yield MarkdownViewer("", id="dv-markdown", show_table_of_contents=False)
             with TabPane("Config", id="dv-tab-config"):
-                yield Static("", id="dv-config-text")
+                with VerticalScroll(id="dv-config-scroll"):
+                    yield Static("", id="dv-config-text")
         with Horizontal(id="dv-buttons"):
             yield Button("Open folder", id="dv-open", variant="warning")
             yield Button("Continue from this", id="dv-continue", variant="primary")
