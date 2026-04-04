@@ -46,11 +46,17 @@ class Sidebar(Container):
         yield ListView(
             SidebarItem("Ask a question", "ask", classes="sidebar-item"),
             SidebarItem("Create config", "create-config", classes="sidebar-item"),
-            SidebarItem("Generate config (AI)", "generate", classes="sidebar-item"),
+            # TODO: re-add when AI config generation is implemented
+            # SidebarItem("Generate config (AI)", "generate", classes="sidebar-item"),
             id="nav-new",
             classes="sidebar-list",
         )
         yield Static("HISTORY", classes="sidebar-section-header")
+        yield ListView(
+            SidebarItem("View all history", "history", classes="sidebar-item"),
+            id="nav-history-link",
+            classes="sidebar-list",
+        )
         yield VerticalScroll(id="history-container", classes="sidebar-history")
         yield Static("ENVIRONMENT", classes="sidebar-section-header")
         yield ListView(
@@ -60,16 +66,16 @@ class Sidebar(Container):
             classes="sidebar-list",
         )
 
-    def on_mount(self) -> None:
-        self.refresh_history()
+    async def on_mount(self) -> None:
+        await self.refresh_history()
 
-    def refresh_history(self) -> None:
+    async def refresh_history(self) -> None:
         """Reload history items from the database."""
         # Lazy import to avoid pulling in heavy deps at import time
         from dissenter.db import list_runs
 
         container = self.query_one("#history-container", VerticalScroll)
-        container.remove_children()
+        await container.remove_children()
 
         try:
             runs = list_runs(limit=10)
@@ -77,7 +83,7 @@ class Sidebar(Container):
             runs = []
 
         if not runs:
-            container.mount(Static("No decisions yet", classes="sidebar-muted"))
+            await container.mount(Static("No decisions yet", classes="sidebar-muted"))
             return
 
         items: list[SidebarItem] = []
@@ -97,7 +103,7 @@ class Sidebar(Container):
             )
 
         history_list = ListView(*items, id="nav-history", classes="sidebar-list")
-        container.mount(history_list)
+        await container.mount(history_list)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Forward list item selection as a Sidebar.Selected message."""

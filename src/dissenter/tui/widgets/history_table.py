@@ -70,8 +70,9 @@ class HistoryTable(Vertical):
             pass
         return None
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "ht-delete":
+            self._just_deleted = True
             run_id = self._get_selected_run_id()
             if run_id is None:
                 self.app.notify("Select a row first", severity="warning")
@@ -83,7 +84,7 @@ class HistoryTable(Vertical):
             # Refresh sidebar history too
             try:
                 from .sidebar import Sidebar
-                self.app.query_one("#sidebar", Sidebar).refresh_history()
+                await self.app.query_one("#sidebar", Sidebar).refresh_history()
             except Exception:
                 pass
 
@@ -95,12 +96,21 @@ class HistoryTable(Vertical):
             self.post_message(self.Selected(self._run_ids[row_index]))
 
     def on_click(self, event) -> None:
-        """Also open decision on single click after a short delay."""
+        """Also open decision on single click after a short delay — only from the table."""
+        # Skip if a delete just happened (button click bubbles up here)
+        if getattr(self, "_just_deleted", False):
+            self._just_deleted = False
+            return
         self.set_timer(0.1, self._emit_for_cursor)
 
     def _emit_for_cursor(self) -> None:
+        if getattr(self, "_just_deleted", False):
+            self._just_deleted = False
+            return
         try:
             table = self.query_one("#ht-table", DataTable)
+            if not table.has_focus:
+                return
             row_index = table.cursor_row
             if hasattr(self, "_run_ids") and 0 <= row_index < len(self._run_ids):
                 self.post_message(self.Selected(self._run_ids[row_index]))
