@@ -304,24 +304,29 @@ class ConfigBuilder(VerticalScroll):
         self.app.notify("Config builder reset", title="Reset")
 
     async def _add_round(self) -> None:
-        """Add a new debate round before the final round."""
+        """Insert a new debate round directly before the final round.
+
+        Uses mount(before=...) so the existing final round (and any of its
+        models the user already configured) is preserved untouched.
+        """
         container = self.query_one("#builder-rounds")
         blocks = list(container.query(RoundBlock))
 
-        # Remove the final block, add new debate round, re-add a fresh final
+        n = len(blocks) + 1
+        new_debate = RoundBlock(
+            n, f"round_{n}", is_final=False, model_choices=self._model_choices,
+        )
+
         if blocks:
             final = blocks[-1]
-            final_name = final.query_one(".round-name-input", Input).value.strip() or "final"
-            await final.remove()
+            await container.mount(new_debate, before=final)
         else:
-            final_name = "final"
-
-        n = len(list(container.query(RoundBlock))) + 1
-        new_debate = RoundBlock(n, f"round_{n}", is_final=False, model_choices=self._model_choices)
-        await container.mount(new_debate)
-
-        new_final = RoundBlock(n + 1, final_name, is_final=True, model_choices=self._model_choices)
-        await container.mount(new_final)
+            # No rounds at all — just mount and add a fresh final after
+            await container.mount(new_debate)
+            new_final = RoundBlock(
+                2, "final", is_final=True, model_choices=self._model_choices,
+            )
+            await container.mount(new_final)
 
         self._renumber()
 
