@@ -40,6 +40,10 @@ class ConfigsList(Vertical):
         height: auto;
         max-height: 8;
         margin-bottom: 1;
+        border: solid $primary-background;
+    }
+    ConfigsList DataTable.active-table {
+        border: solid $accent;
     }
     ConfigsList #cl-preview-scroll {
         height: 1fr;
@@ -140,12 +144,13 @@ class ConfigsList(Vertical):
         self.query_one("#cl-preview-header", Static).update("")
         self.query_one("#cl-preview", Static).update("")
 
-        # Reset cursor visibility on both tables — neither selected initially
+        # Clear active state on both tables — neither selected initially
         for table_id in ("#cl-saved-table", "#cl-cwd-table"):
             try:
-                self.query_one(table_id, DataTable).show_cursor = False
+                self.query_one(table_id, DataTable).remove_class("active-table")
             except Exception:
                 pass
+        self._active_table_id: str | None = None
 
     def _resolve_path_from_event(self, event: DataTable.RowSelected) -> Path | None:
         table = event.data_table
@@ -161,21 +166,22 @@ class ConfigsList(Vertical):
         return None
 
     def _get_selected_path(self) -> Path | None:
-        """Return the path of the currently visible cursor — only one table shows it."""
-        for table_id, paths in (
-            ("#cl-saved-table", getattr(self, "_saved_paths", [])),
-            ("#cl-cwd-table", getattr(self, "_cwd_paths", [])),
-        ):
-            try:
-                table = self.query_one(table_id, DataTable)
-                if not table.show_cursor:
-                    continue
-                idx = table.cursor_row
-                if 0 <= idx < len(paths):
-                    return paths[idx]
-            except Exception:
-                pass
-        return self._last_selected if (self._last_selected and self._last_selected.exists()) else None
+        """Return the path from the currently active table only."""
+        active = getattr(self, "_active_table_id", None)
+        if active == "cl-saved-table":
+            paths = self._saved_paths
+        elif active == "cl-cwd-table":
+            paths = self._cwd_paths
+        else:
+            return self._last_selected if (self._last_selected and self._last_selected.exists()) else None
+        try:
+            table = self.query_one(f"#{active}", DataTable)
+            idx = table.cursor_row
+            if 0 <= idx < len(paths):
+                return paths[idx]
+        except Exception:
+            pass
+        return None
 
     def _show_preview(self, path: Path) -> None:
         """Load a config file's contents into the preview area."""
@@ -245,14 +251,12 @@ class ConfigsList(Vertical):
             return
         idx = event.cursor_row
         if 0 <= idx < len(paths):
-            # Hide the other table's cursor so only one selection is visible
+            # Mark this table as active, deactivate the other
+            self._active_table_id = table.id
+            table.add_class("active-table")
             try:
                 other = self.query_one(other_id, DataTable)
-                other.show_cursor = False
-            except Exception:
-                pass
-            try:
-                table.show_cursor = True
+                other.remove_class("active-table")
             except Exception:
                 pass
             self._show_preview(paths[idx])

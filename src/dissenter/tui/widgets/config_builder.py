@@ -188,21 +188,39 @@ class RoundBlock(Vertical):
             if not self._is_final:
                 yield Button("✕ Remove round", classes="remove-round-btn", variant="error")
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
         if "add-model-btn" in event.button.classes:
             container = self.query_one(".model-list")
             default_role = "chairman" if self._is_final else "analyst"
-            container.mount(ModelRow(self._model_choices, role=default_role))
+            await container.mount(ModelRow(self._model_choices, role=default_role))
+            self._update_remove_buttons()
             event.stop()
         elif "remove-model-btn" in event.button.classes:
-            row = event.button.parent
-            if isinstance(row, ModelRow):
-                row.remove()
+            # Walk up the ancestor chain to find the ModelRow (button is nested in a Horizontal)
+            ancestor = event.button.parent
+            while ancestor is not None and not isinstance(ancestor, ModelRow):
+                ancestor = ancestor.parent
+            if ancestor is not None:
+                await ancestor.remove()
+                self._update_remove_buttons()
             event.stop()
         elif "remove-round-btn" in event.button.classes:
-            self.remove()
-            # Trigger renumber on the parent ConfigBuilder
+            await self.remove()
             event.stop()
+
+    def _update_remove_buttons(self) -> None:
+        """Disable the remove-model button when only one model remains."""
+        rows = list(self.query(ModelRow))
+        only_one = len(rows) == 1
+        for row in rows:
+            try:
+                btn = row.query_one(".remove-model-btn", Button)
+                btn.disabled = only_one
+            except Exception:
+                pass
+
+    def on_mount(self) -> None:
+        self._update_remove_buttons()
 
     def get_data(self) -> dict:
         name = self.query_one(".round-name-input", Input).value.strip()
@@ -304,30 +322,72 @@ class ConfigBuilder(VerticalScroll):
         self.app.notify("Config builder reset", title="Reset")
 
     async def _add_round(self) -> None:
-        """Insert a new debate round directly before the final round.
+        """Insert a new debate round between the last debate round and the final.
 
-        Uses mount(before=...) so the existing final round (and any of its
-        models the user already configured) is preserved untouched.
+        Snapshots all current round data, rebuilds the container with the new
+        round inserted at the correct position, then restores everything. This
+        guarantees ordering and preserves all user input across all rounds.
         """
         container = self.query_one("#builder-rounds")
         blocks = list(container.query(RoundBlock))
 
-        n = len(blocks) + 1
-        new_debate = RoundBlock(
-            n, f"round_{n}", is_final=False, model_choices=self._model_choices,
-        )
+        if not blocks:
+            # No rounds — create a fresh debate + final pair
+            await container.mount(RoundBlock(1, "round_1", is_final=False, model_choices=self._model_choices))
+            await container.mount(RoundBlock(2, "final", is_final=True, model_choices=self._model_choices))
+            self._round_counter = 2
+            return
 
-        if blocks:
-            final = blocks[-1]
-            await container.mount(new_debate, before=final)
-        else:
-            # No rounds at all — just mount and add a fresh final after
-            await container.mount(new_debate)
-            new_final = RoundBlock(
-                2, "final", is_final=True, model_choices=self._model_choices,
+        # Snapshot all rounds
+        snapshots = [b.get_data() for b in blocks]
+        is_finals = [b._is_final for b in blocks]
+
+        # Insert a new debate-round snapshot just before the final
+        debate_count = sum(1 for f in is_finals if not f)
+        new_snapshot = {"name": f"round_{debate_count + 1}", "models": []}
+        # Insert before the last (final) entry
+        snapshots.insert(-1, new_snapshot)
+        is_finals.insert(-1, False)
+
+        # Wipe and rebuild
+        for b in blocks:
+            await b.remove()
+
+        for i, (snap, is_final) in enumerate(zip(snapshots, is_finals), 1):
+            block = RoundBlock(
+                i, snap["name"], is_final=is_final, model_choices=self._model_choices,
             )
-            await container.mount(new_final)
+            await container.mount(block)
 
+            # Restore models for this round (replace the default model row)
+            if snap["models"]:
+                model_list = block.query_one(".model-list")
+                for default_row in list(model_list.query(ModelRow)):
+                    await default_row.remove()
+
+                known_ids = {v for _, v in self._model_choices if v != "__custom__"}
+                for m in snap["models"]:
+                    role = m.get("role", "chairman" if is_final else "analyst")
+                    auth = m.get("auth", "api")
+                    row = ModelRow(self._model_choices, role=role, auth=auth)
+                    await model_list.mount(row)
+
+                    model_id = m.get("id", "")
+                    model_select = row.query_one(".model-select", Select)
+                    if model_id and model_id in known_ids:
+                        model_select.value = model_id
+                    elif model_id:
+                        model_select.value = "__custom__"
+                        custom_input = row.query_one(".model-custom-input", Input)
+                        custom_input.value = model_id
+                        custom_input.styles.display = "block"
+
+                    timeout = m.get("timeout", 180)
+                    row.query_one(".timeout-input", Input).value = str(timeout)
+
+            block._update_remove_buttons()
+
+        self._round_counter = len(snapshots)
         self._renumber()
 
     def _renumber(self) -> None:
@@ -412,6 +472,8 @@ class ConfigBuilder(VerticalScroll):
                     # Set timeout
                     timeout = m.get("timeout", 180)
                     row.query_one(".timeout-input", Input).value = str(timeout)
+
+            block._update_remove_buttons()
 
         self._round_counter = len(rounds)
 
