@@ -126,6 +126,17 @@ class DissenterApp(App):
                 "configs-list": "content-configs-list",
             }.get(event.item_type, "content-home")
             switcher.current = content_id
+            # Refresh dynamic content on switch
+            if content_id == "content-ask":
+                try:
+                    self.query_one("#ask-form", AskForm).refresh_configs()
+                except Exception:
+                    pass
+            elif content_id == "content-configs-list":
+                try:
+                    self.query_one("#content-configs-list", ConfigsList).load_configs()
+                except Exception:
+                    pass
 
     def on_history_table_selected(self, event: HistoryTable.Selected) -> None:
         """User clicked a row in the history table — show the decision."""
@@ -167,10 +178,15 @@ class DissenterApp(App):
     def action_switch(self, content_id: str) -> None:
         """Switch the content area to the given panel."""
         self.query_one("#content-switcher", ContentSwitcher).current = content_id
-        # Refresh data when switching to history
+        # Refresh data when switching to dynamic panels
         if content_id == "content-history":
             try:
                 self.query_one("#content-history", HistoryTable).load_runs()
+            except Exception:
+                pass
+        elif content_id == "content-ask":
+            try:
+                self.query_one("#ask-form", AskForm).refresh_configs()
             except Exception:
                 pass
 
@@ -205,6 +221,17 @@ class DissenterApp(App):
 
         out_path.write_text("\n".join(lines), encoding="utf-8")
         self.notify(f"Saved: {out_path}", title="Config created")
+
+        # Refresh the Ask form's config dropdown so the new file shows up
+        try:
+            self.query_one("#ask-form", AskForm).refresh_configs()
+        except Exception:
+            pass
+        # Also refresh the saved configs list if the user opens it next
+        try:
+            self.query_one("#content-configs-list", ConfigsList).load_configs()
+        except Exception:
+            pass
 
     async def on_configs_list_use_as_template(self, event: ConfigsList.UseAsTemplate) -> None:
         """Load config into the builder and switch to it."""

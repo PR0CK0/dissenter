@@ -95,6 +95,14 @@ class AskForm(Vertical):
 
     def on_mount(self) -> None:
         """Populate the config Select with detected config files and presets."""
+        self.refresh_configs()
+
+    def refresh_configs(self) -> None:
+        """Re-scan disk for config files and rebuild the Select dropdown.
+
+        Called on mount, on switching to the Ask page, and after a new
+        config is saved elsewhere in the app.
+        """
         from dissenter.paths import configs_dir
 
         options: list[tuple[str, str | None]] = [
@@ -120,8 +128,15 @@ class AskForm(Vertical):
         # Add the quick/auto-detect option
         options.append(("Quick (auto-detect Ollama)", "__quick__"))
 
-        select = self.query_one("#config-select", Select)
-        select.set_options(options)
+        try:
+            select = self.query_one("#config-select", Select)
+            current = select.value
+            select.set_options(options)
+            # Preserve selection if it still exists
+            if current is not None and any(o[1] == current for o in options):
+                select.value = current
+        except Exception:
+            pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id != "start-btn":
