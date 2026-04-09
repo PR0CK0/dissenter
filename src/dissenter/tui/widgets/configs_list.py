@@ -140,6 +140,13 @@ class ConfigsList(Vertical):
         self.query_one("#cl-preview-header", Static).update("")
         self.query_one("#cl-preview", Static).update("")
 
+        # Reset cursor visibility on both tables — neither selected initially
+        for table_id in ("#cl-saved-table", "#cl-cwd-table"):
+            try:
+                self.query_one(table_id, DataTable).show_cursor = False
+            except Exception:
+                pass
+
     def _resolve_path_from_event(self, event: DataTable.RowSelected) -> Path | None:
         table = event.data_table
         if table.id == "cl-saved-table":
@@ -154,22 +161,21 @@ class ConfigsList(Vertical):
         return None
 
     def _get_selected_path(self) -> Path | None:
-        """Return the last-selected path, or fall back to focused table cursor."""
-        if self._last_selected and self._last_selected.exists():
-            return self._last_selected
-
+        """Return the path of the currently visible cursor — only one table shows it."""
         for table_id, paths in (
             ("#cl-saved-table", getattr(self, "_saved_paths", [])),
             ("#cl-cwd-table", getattr(self, "_cwd_paths", [])),
         ):
-            table = self.query_one(table_id, DataTable)
             try:
+                table = self.query_one(table_id, DataTable)
+                if not table.show_cursor:
+                    continue
                 idx = table.cursor_row
-                if table.has_focus and 0 <= idx < len(paths):
+                if 0 <= idx < len(paths):
                     return paths[idx]
             except Exception:
                 pass
-        return None
+        return self._last_selected if (self._last_selected and self._last_selected.exists()) else None
 
     def _show_preview(self, path: Path) -> None:
         """Load a config file's contents into the preview area."""
@@ -231,12 +237,24 @@ class ConfigsList(Vertical):
         table = event.data_table
         if table.id == "cl-saved-table":
             paths = self._saved_paths
+            other_id = "#cl-cwd-table"
         elif table.id == "cl-cwd-table":
             paths = self._cwd_paths
+            other_id = "#cl-saved-table"
         else:
             return
         idx = event.cursor_row
         if 0 <= idx < len(paths):
+            # Hide the other table's cursor so only one selection is visible
+            try:
+                other = self.query_one(other_id, DataTable)
+                other.show_cursor = False
+            except Exception:
+                pass
+            try:
+                table.show_cursor = True
+            except Exception:
+                pass
             self._show_preview(paths[idx])
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
