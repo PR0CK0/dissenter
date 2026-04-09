@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here.
 
+## [3.1.0] — 2026-04-09
+
+### Added
+- **`benchmark-plan.md`** — full plan for benchmark mode (subcommand design, dataset selection, competitor wrapper feasibility, paper structure, TUI/CLI parity)
+- **Active-table indicator** — Saved Configs page now shows an accent-colored border around the most recently interacted table
+- **Disabled remove-model button** — when only one model remains in a round, its remove button is disabled so you can't accidentally empty the round
+
+### Fixed
+- **Saved Configs: stale selection across tables** — clicking a row in one table now de-emphasizes the other, with both tables remaining fully clickable
+- **Ask form: config dropdown stale** — saving a new config in the builder now refreshes the Ask page's config Select; switching to the Ask page also re-scans
+- **Config builder: add round wiped existing rounds** — the snapshot-and-rebuild approach guarantees position and preserves all user input across every round
+- **Config builder: remove-model button broken** — was looking up the wrong parent; now walks the ancestor chain to find the ModelRow
+
+---
+
 ## [3.0.2] — 2026-04-04
 
 ### Changed
