@@ -9,6 +9,32 @@ from .config import DissentConfig, ModelConfig, RoundConfig
 from .roles import get_prompt, load_roles
 from .runner import ModelResult, RoundResult, _query_model_cli
 
+_BENCHMARK_SYNTHESIS_PROMPT = """\
+You are an expert evaluator picking the correct answer to a benchmark question
+based on a multi-model debate.
+
+Question:
+{question}
+
+The debate produced these arguments across {n_rounds} round(s):
+
+{all_round_outputs}
+
+Your job: weigh the debate, determine the single best answer, and respond
+with a brief rationale (2-4 sentences) followed by EXACTLY one final line
+in this format (no extra text after it):
+
+FINAL ANSWER: <answer>
+
+For multiple-choice questions, <answer> is a single uppercase letter (A, B, C, ...).
+For numeric questions, <answer> is the number with no units.
+For code questions, provide the complete solution as a single Python code block
+  before the FINAL ANSWER line; the code block itself is the submission.
+
+Do not deviate from this format. Be decisive — pick one answer.
+"""
+
+
 _SYNTHESIS_PROMPT = """\
 You are a principal architect writing a formal Architectural Decision Record (ADR).
 
@@ -291,3 +317,41 @@ async def synthesize(
         )
         combined = await _call_model(combine_cfg, combine_prompt)
         return combined, list(results)
+
+
+async def synthesize_benchmark(
+    question: str,
+    all_rounds: list[RoundResult],
+    cfg: DissentConfig,
+) -> tuple[str, list[ModelResult]]:
+    """Synthesis path for benchmark mode.
+
+    Uses a lean answer-focused prompt instead of the ADR template. The
+    final-round chairman produces a brief rationale ending with a
+    FINAL ANSWER: line that the benchmark parser can extract.
+
+    Dual-arbiter configs collapse to the first model for benchmark runs —
+    we need a single decisive answer, not side-by-side recommendations.
+    """
+    final_round = cfg.rounds[-1]
+    active = final_round.active_models
+    if not active:
+        raise ValueError("Final round has no active models")
+
+    debate_outputs = _format_all_rounds(all_rounds[:-1])
+
+    arbiter = active[0]
+    prompt = _BENCHMARK_SYNTHESIS_PROMPT.format(
+        question=question,
+        all_round_outputs=debate_outputs,
+        n_rounds=len(all_rounds),
+    )
+    content = await _call_model(arbiter, prompt)
+    result = ModelResult(
+        model_id=arbiter.id,
+        role=arbiter.role,
+        round_name=final_round.name or "final",
+        content=content,
+        elapsed=0.0,
+    )
+    return content, [result]
