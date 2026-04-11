@@ -699,6 +699,94 @@ def upgrade(
 
 
 @app.command()
+def benchmark(
+    dataset: Path = typer.Argument(
+        ..., help="Path to a JSONL dataset file (see datasets/test-mini.jsonl)"
+    ),
+    config: Optional[Path] = typer.Option(
+        None, "--config", "-c", help="Debate config (TOML or named preset)"
+    ),
+    output: Path = typer.Option(
+        Path("results.json"), "--output", "-o", help="Where to write the results JSON"
+    ),
+    limit: int = typer.Option(
+        0, "--limit", "-n", help="Run only the first N questions (0 = all)"
+    ),
+    deep: bool = typer.Option(
+        False, "--deep", help="Inject a mutual critique round before synthesis"
+    ),
+) -> None:
+    """Run a benchmark dataset through the debate pipeline and report accuracy.
+
+    Dataset format: JSONL, one question per line, with keys
+    id / type (mcq|numeric|code) / question / answer / choices (mcq only) / metadata.
+
+    Examples:
+      dissenter benchmark datasets/test-mini.jsonl
+      dissenter benchmark datasets/gpqa_diamond.jsonl -c bench.toml -n 10 --deep
+      dissenter benchmark datasets/test-mini.jsonl -o results/mini.json
+    """
+    import asyncio
+    from dissenter.benchmark import run_benchmark
+
+    _header("benchmark")
+
+    if not dataset.exists():
+        err.print(f"[red]Error:[/red] dataset not found: {dataset}")
+        raise typer.Exit(1)
+
+    try:
+        cfg = load_config(config)
+    except FileNotFoundError as e:
+        err.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+
+    err.print(f"  [dim]Dataset:[/dim] {dataset}")
+    err.print(f"  [dim]Config:[/dim]  {config or 'dissenter.toml'}")
+    err.print(f"  [dim]Output:[/dim]  {output}")
+    if limit:
+        err.print(f"  [dim]Limit:[/dim]   {limit} questions")
+    if deep:
+        err.print(f"  [dim]Mode:[/dim]    --deep (+ critique round)")
+    err.print()
+
+    def _progress(i: int, total: int, qr) -> None:
+        if qr.error:
+            status = "[yellow]![/yellow]"
+            detail = qr.error[:60]
+        elif qr.correct:
+            status = "[green]✓[/green]"
+            detail = f"pred={qr.predicted} truth={qr.ground_truth}"
+        else:
+            status = "[red]✗[/red]"
+            detail = f"pred={qr.predicted} truth={qr.ground_truth}"
+        err.print(f"  [{i}/{total}] {status} {qr.id}: {detail}  [dim]({qr.latency_s:.1f}s)[/dim]")
+
+    config_label = config.stem if config else (cfg.rounds[-1].models[0].id if cfg.rounds else "default")
+
+    result = asyncio.run(
+        run_benchmark(
+            dataset_path=dataset,
+            cfg=cfg,
+            output_path=output,
+            limit=limit,
+            deep=deep,
+            config_label=str(config_label),
+            progress=_progress,
+        )
+    )
+
+    err.print()
+    err.print(Rule())
+    err.print(f"  [bold]Accuracy:[/bold] {result.correct}/{result.total} ({result.accuracy:.1%})")
+    err.print(f"  [bold]Errors:[/bold]   {result.errors}")
+    err.print(f"  [bold]Time:[/bold]     {result.total_latency_s:.1f}s ({result.total_latency_s / max(1, result.total):.1f}s/question)")
+    err.print()
+    err.print(f"  [dim]Results:[/dim] {output}")
+    err.print()
+
+
+@app.command()
 def models() -> None:
     """Show detected local models, CLI tools, and API key env var status.
 
