@@ -1,0 +1,36 @@
+# dissenter benchmark config — ministral-3:3b baseline
+#
+# Pinned config for reproducible benchmark runs using only a local
+# ollama model. No API keys required.
+#
+# Round 1: debate — liberal + conservative (same model, different roles)
+# Round 2: final  — chairman synthesis
+#
+# Usage:
+#   dissenter benchmark datasets/test-mini.jsonl -c configs/bench-ministral-baseline.toml
+
+output_dir = "decisions/benchmark"
+
+[[rounds]]
+name = "debate"
+
+[[rounds.models]]
+id      = "ollama/ministral-3:3b"
+role    = "liberal"
+timeout = 120
+extra   = { api_base = "http://localhost:11434" }
+
+[[rounds.models]]
+id      = "ollama/ministral-3:3b"
+role    = "conservative"
+timeout = 120
+extra   = { api_base = "http://localhost:11434" }
+
+[[rounds]]
+name = "final"
+
+[[rounds.models]]
+id      = "ollama/ministral-3:3b"
+role    = "chairman"
+timeout = 180
+extra   = { api_base = "http://localhost:11434" }
