@@ -7,6 +7,7 @@ from textual.widgets import ContentSwitcher, Footer, Header, Static
 
 from .widgets.sidebar import Sidebar
 from .widgets.ask_form import AskForm
+from .widgets.benchmark_form import BenchmarkForm
 from .widgets.config_builder import ConfigBuilder
 from .widgets.configs_list import ConfigsList
 # TODO: re-add when AI config generation is implemented
@@ -39,6 +40,7 @@ class DissenterApp(App):
                 yield VerticalScroll(self._build_home(), id="content-home")
                 yield VerticalScroll(AskForm(id="ask-form"), id="content-ask")
                 yield VerticalScroll(ConfigBuilder(id="config-builder"), id="content-create-config")
+                yield VerticalScroll(BenchmarkForm(id="benchmark-form"), id="content-benchmark")
                 # TODO: re-add when AI config generation is implemented
                 # yield VerticalScroll(GenerateForm(id="generate-form"), id="content-generate")
                 yield HistoryTable(id="content-history")
@@ -123,6 +125,7 @@ class DissenterApp(App):
                 "home": "content-home",
                 "ask": "content-ask",
                 "create-config": "content-create-config",
+                "benchmark": "content-benchmark",
                 "configs-list": "content-configs-list",
             }.get(event.item_type, "content-home")
             switcher.current = content_id
@@ -130,6 +133,11 @@ class DissenterApp(App):
             if content_id == "content-ask":
                 try:
                     self.query_one("#ask-form", AskForm).refresh_configs()
+                except Exception:
+                    pass
+            elif content_id == "content-benchmark":
+                try:
+                    self.query_one("#benchmark-form", BenchmarkForm).refresh_options()
                 except Exception:
                     pass
             elif content_id == "content-configs-list":
@@ -143,6 +151,23 @@ class DissenterApp(App):
         viewer = self.query_one("#decision-viewer", DecisionViewer)
         viewer.load_decision(event.run_id)
         self.query_one("#content-switcher", ContentSwitcher).current = "content-decision"
+
+    def on_benchmark_form_benchmark_requested(
+        self, event: BenchmarkForm.BenchmarkRequested
+    ) -> None:
+        """User pressed Start on the benchmark form — push the benchmark screen."""
+        from .screens.benchmark import BenchmarkScreen
+        screen = BenchmarkScreen(
+            dataset_path=event.dataset_path,
+            config_path=event.config_path,
+            output_path=event.output_path,
+            limit=event.limit,
+            mode=event.mode,
+            majority_n=event.majority_n,
+            deep=event.deep,
+            competitor=event.competitor,
+        )
+        self.push_screen(screen)
 
     def on_ask_form_debate_requested(self, event: AskForm.DebateRequested) -> None:
         """User pressed Start Debate — push the debate screen."""

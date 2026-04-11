@@ -46,6 +46,7 @@ class Sidebar(Container):
         yield ListView(
             SidebarItem("Ask a question", "ask", classes="sidebar-item"),
             SidebarItem("Create config", "create-config", classes="sidebar-item"),
+            SidebarItem("Run benchmark", "benchmark", classes="sidebar-item"),
             # TODO: re-add when AI config generation is implemented
             # SidebarItem("Generate config (AI)", "generate", classes="sidebar-item"),
             id="nav-new",
