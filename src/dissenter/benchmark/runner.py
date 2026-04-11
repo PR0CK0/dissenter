@@ -17,6 +17,7 @@ from dissenter.config import DissentConfig
 from dissenter.runner import run_all_rounds
 from dissenter.synthesis import synthesize_benchmark
 
+from .code_eval import eval_humaneval
 from .datasets import Question, load_dataset
 from .parser import parse_answer
 from .prompts import format_benchmark_question
@@ -72,7 +73,7 @@ async def _run_one(
         final_text, _results = await synthesize_benchmark(question_text, all_rounds, cfg)
         predicted = parse_answer(final_text, q.type)
         is_correct = (
-            predicted is not None and _compare(predicted, q.answer, q.type)
+            predicted is not None and _compare(predicted, q.answer, q.type, q.metadata)
         )
         return QuestionResult(
             id=q.id,
@@ -98,7 +99,7 @@ async def _run_one(
         )
 
 
-def _compare(predicted: str, truth: str, question_type: str) -> bool:
+def _compare(predicted: str, truth: str, question_type: str, metadata: dict) -> bool:
     if question_type == "mcq":
         return predicted.strip().upper() == truth.strip().upper()
     if question_type == "numeric":
@@ -107,7 +108,12 @@ def _compare(predicted: str, truth: str, question_type: str) -> bool:
         except ValueError:
             return predicted.strip() == truth.strip()
     if question_type == "code":
-        # Stage 1: just check that we extracted non-empty code.
-        # Stage 2+ will execute against test cases.
+        # If we have HumanEval metadata, execute against its test cases.
+        test_code = metadata.get("test")
+        entry_point = metadata.get("entry_point")
+        if test_code and entry_point:
+            result = eval_humaneval(predicted, test_code, entry_point)
+            return result.passed
+        # Otherwise just check that code was extracted (weak fallback)
         return bool(predicted and predicted.strip())
     return False
