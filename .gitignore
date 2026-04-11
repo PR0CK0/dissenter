@@ -11,3 +11,8 @@ dist/
 .DS_Store
 .pytest_cache/
 .claude/
+
+# Benchmark datasets and results — fetched, not committed
+datasets/*.jsonl
+!datasets/test-mini.jsonl
+results/
