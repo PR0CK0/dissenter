@@ -17,6 +17,7 @@ from dissenter.config import DissentConfig
 from dissenter.runner import run_all_rounds
 from dissenter.synthesis import synthesize_benchmark
 
+from .baselines import run_majority, run_single
 from .code_eval import eval_humaneval
 from .datasets import Question, load_dataset
 from .parser import parse_answer
@@ -27,26 +28,41 @@ from .results import BenchmarkResult, QuestionResult, write_results
 ProgressCallback = Callable[[int, int, QuestionResult], None]
 
 
+# Supported benchmark modes:
+#   "dissenter" — full multi-round debate (the whole point)
+#   "single"    — ask one model once, no debate
+#   "majority"  — ask one model N times, majority-vote the answer
+Mode = str  # for typing clarity
+
+
 async def run_benchmark(
     dataset_path: Path,
     cfg: DissentConfig,
     output_path: Path,
     limit: int = 0,
     deep: bool = False,
+    mode: Mode = "dissenter",
+    majority_n: int = 3,
     config_label: str = "",
     progress: Optional[ProgressCallback] = None,
 ) -> BenchmarkResult:
-    """Run dissenter over a benchmark dataset and return aggregated results."""
+    """Run a benchmark and return aggregated results.
+
+    mode:
+      "dissenter" — full debate pipeline (default)
+      "single"    — one model, no debate
+      "majority"  — one model × majority_n, majority vote
+    """
     questions = load_dataset(dataset_path, limit=limit)
 
     result = BenchmarkResult(
         dataset=dataset_path.name,
-        config=config_label or dataset_path.stem,
+        config=f"{config_label or dataset_path.stem} [{mode}]",
         timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
     )
 
     for idx, q in enumerate(questions, 1):
-        qr = await _run_one(q, cfg, deep)
+        qr = await _run_one(q, cfg, deep, mode, majority_n)
         result.add_question(qr)
         if progress:
             try:
@@ -63,14 +79,24 @@ async def _run_one(
     q: Question,
     cfg: DissentConfig,
     deep: bool,
+    mode: Mode,
+    majority_n: int,
 ) -> QuestionResult:
-    """Run a single question and return a QuestionResult."""
+    """Run a single question through the selected mode."""
     t0 = time.time()
     question_text = format_benchmark_question(q)
 
     try:
-        all_rounds = await run_all_rounds(cfg, question_text, deep=deep)
-        final_text, _results = await synthesize_benchmark(question_text, all_rounds, cfg)
+        if mode == "single":
+            final_text = await run_single(q, cfg)
+        elif mode == "majority":
+            final_text = await run_majority(q, cfg, n=majority_n)
+        else:  # "dissenter"
+            all_rounds = await run_all_rounds(cfg, question_text, deep=deep)
+            final_text, _results = await synthesize_benchmark(
+                question_text, all_rounds, cfg
+            )
+
         predicted = parse_answer(final_text, q.type)
         is_correct = (
             predicted is not None and _compare(predicted, q.answer, q.type, q.metadata)

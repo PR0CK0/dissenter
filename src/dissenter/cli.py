@@ -715,6 +715,14 @@ def benchmark(
     deep: bool = typer.Option(
         False, "--deep", help="Inject a mutual critique round before synthesis"
     ),
+    baseline: Optional[str] = typer.Option(
+        None, "--baseline",
+        help="Skip the debate: 'single' (one model) or 'majority' (one model × N)",
+    ),
+    majority_n: int = typer.Option(
+        3, "--majority-n",
+        help="Number of samples for --baseline majority",
+    ),
 ) -> None:
     """Run a benchmark dataset through the debate pipeline and report accuracy.
 
@@ -741,13 +749,19 @@ def benchmark(
         err.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
 
+    mode = baseline or "dissenter"
+    if mode not in ("dissenter", "single", "majority"):
+        err.print(f"[red]Error:[/red] --baseline must be 'single' or 'majority', got '{baseline}'")
+        raise typer.Exit(1)
+
     err.print(f"  [dim]Dataset:[/dim] {dataset}")
     err.print(f"  [dim]Config:[/dim]  {config or 'dissenter.toml'}")
     err.print(f"  [dim]Output:[/dim]  {output}")
+    err.print(f"  [dim]Mode:[/dim]    {mode}" + (f" (n={majority_n})" if mode == "majority" else ""))
     if limit:
         err.print(f"  [dim]Limit:[/dim]   {limit} questions")
-    if deep:
-        err.print(f"  [dim]Mode:[/dim]    --deep (+ critique round)")
+    if deep and mode == "dissenter":
+        err.print(f"  [dim]Deep:[/dim]    + critique round")
     err.print()
 
     def _progress(i: int, total: int, qr) -> None:
@@ -771,6 +785,8 @@ def benchmark(
             output_path=output,
             limit=limit,
             deep=deep,
+            mode=mode,
+            majority_n=majority_n,
             config_label=str(config_label),
             progress=_progress,
         )
