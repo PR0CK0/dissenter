@@ -41,6 +41,10 @@ Changelog = "https://github.com/PR0CK0/dissenter/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
+# Pulls Hugging Face datasets + helper libs for fetching benchmark datasets.
+# Only needed to run scripts/fetch_datasets.py — not required for running
+# benchmarks on locally-staged JSONL files.
+benchmark = ["datasets>=3.0.0", "huggingface-hub>=0.25.0"]
 
 [project.scripts]
 dissenter = "dissenter.cli:app"
