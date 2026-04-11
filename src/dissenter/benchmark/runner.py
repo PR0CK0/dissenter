@@ -19,6 +19,7 @@ from dissenter.synthesis import synthesize_benchmark
 
 from .baselines import run_majority, run_single
 from .code_eval import eval_humaneval
+from .competitors.base import Competitor
 from .datasets import Question, load_dataset
 from .parser import parse_answer
 from .prompts import format_benchmark_question
@@ -43,26 +44,36 @@ async def run_benchmark(
     deep: bool = False,
     mode: Mode = "dissenter",
     majority_n: int = 3,
+    competitor: Optional[Competitor] = None,
     config_label: str = "",
     progress: Optional[ProgressCallback] = None,
 ) -> BenchmarkResult:
     """Run a benchmark and return aggregated results.
 
     mode:
-      "dissenter" — full debate pipeline (default)
-      "single"    — one model, no debate
-      "majority"  — one model × majority_n, majority vote
+      "dissenter"  — full debate pipeline (default)
+      "single"     — one model, no debate
+      "majority"   — one model × majority_n, majority vote
+      "competitor" — delegate to a Competitor instance (llm-council, etc.)
     """
     questions = load_dataset(dataset_path, limit=limit)
 
+    if mode == "competitor":
+        if competitor is None:
+            raise ValueError("mode=competitor requires a Competitor instance")
+        competitor.validate()
+        label = f"{competitor.name}"
+    else:
+        label = config_label or dataset_path.stem
+
     result = BenchmarkResult(
         dataset=dataset_path.name,
-        config=f"{config_label or dataset_path.stem} [{mode}]",
+        config=f"{label} [{mode}]",
         timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
     )
 
     for idx, q in enumerate(questions, 1):
-        qr = await _run_one(q, cfg, deep, mode, majority_n)
+        qr = await _run_one(q, cfg, deep, mode, majority_n, competitor)
         result.add_question(qr)
         if progress:
             try:
@@ -81,6 +92,7 @@ async def _run_one(
     deep: bool,
     mode: Mode,
     majority_n: int,
+    competitor: Optional[Competitor] = None,
 ) -> QuestionResult:
     """Run a single question through the selected mode."""
     t0 = time.time()
@@ -91,6 +103,11 @@ async def _run_one(
             final_text = await run_single(q, cfg)
         elif mode == "majority":
             final_text = await run_majority(q, cfg, n=majority_n)
+        elif mode == "competitor":
+            cr = await competitor.run(question_text)  # type: ignore[union-attr]
+            if cr.error:
+                raise RuntimeError(cr.error)
+            final_text = cr.raw_output
         else:  # "dissenter"
             all_rounds = await run_all_rounds(cfg, question_text, deep=deep)
             final_text, _results = await synthesize_benchmark(

@@ -723,6 +723,10 @@ def benchmark(
         3, "--majority-n",
         help="Number of samples for --baseline majority",
     ),
+    competitor: Optional[str] = typer.Option(
+        None, "--competitor",
+        help="Run a competing tool instead: 'llm-council' | 'llm-consortium' | 'consilium'",
+    ),
 ) -> None:
     """Run a benchmark dataset through the debate pipeline and report accuracy.
 
@@ -750,9 +754,29 @@ def benchmark(
         raise typer.Exit(1)
 
     mode = baseline or "dissenter"
-    if mode not in ("dissenter", "single", "majority"):
+    if competitor is not None:
+        mode = "competitor"
+    if mode not in ("dissenter", "single", "majority", "competitor"):
         err.print(f"[red]Error:[/red] --baseline must be 'single' or 'majority', got '{baseline}'")
         raise typer.Exit(1)
+
+    comp_instance = None
+    if mode == "competitor":
+        from dissenter.benchmark.competitors import LLMCouncil, LLMConsortium, Consilium
+        comp_map = {
+            "llm-council": LLMCouncil,
+            "llm-consortium": LLMConsortium,
+            "consilium": Consilium,
+        }
+        if competitor not in comp_map:
+            err.print(f"[red]Error:[/red] unknown --competitor '{competitor}'. Choose from: {list(comp_map.keys())}")
+            raise typer.Exit(1)
+        comp_instance = comp_map[competitor]()
+        try:
+            comp_instance.validate()
+        except Exception as e:
+            err.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(1)
 
     err.print(f"  [dim]Dataset:[/dim] {dataset}")
     err.print(f"  [dim]Config:[/dim]  {config or 'dissenter.toml'}")
@@ -787,6 +811,7 @@ def benchmark(
             deep=deep,
             mode=mode,
             majority_n=majority_n,
+            competitor=comp_instance,
             config_label=str(config_label),
             progress=_progress,
         )
