@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here.
 
+## [3.2.0] — 2026-04-14
+
+### Added
+- **`dissenter benchmark` subcommand** — run standardized datasets through the debate pipeline, compare answers to ground truth, write results to JSON. Supports `--deep`, `--baseline single`, `--baseline majority`, and `--competitor` modes.
+- **Benchmark module** (`src/dissenter/benchmark/`) — dataset loader (JSONL), answer parser (MCQ/numeric/code), benchmark-specific synthesis prompt, incremental crash-resilient results writer, async runner.
+- **`synthesize_benchmark()`** — lean answer-focused synthesis path producing a parseable `FINAL ANSWER:` line, separate from the ADR synthesis.
+- **HumanEval code executor** — runs candidate solutions against test cases in a subprocess with timeout isolation.
+- **Baseline modes** — `--baseline single` (one model, one shot) and `--baseline majority` (one model × N, majority vote) for direct comparison against the debate pipeline.
+- **Competitor wrappers** — `--competitor llm-council`, `--competitor llm-consortium`, `--competitor consilium` drive external tools through the same benchmark pipeline for apples-to-apples comparison. Best-effort; needs per-tool verification.
+- **Analysis tooling** — `scripts/analyze_results.py` aggregates results.json files into markdown: summary table, per-domain breakdown, McNemar paired comparison with sign-test p-values.
+- **Dataset fetcher** — `scripts/fetch_datasets.py` downloads GPQA-Diamond (gated) and HumanEval (open) from Hugging Face and converts to normalized JSONL.
+- **Pinned benchmark config** — `configs/bench-ministral-baseline.toml` for reproducible local runs (liberal + conservative → chairman, ministral-3:3b, no API keys).
+- **TUI Benchmark page** — sidebar entry → form (dataset / config / mode / limit / output) → live-progress run screen with per-question RichLog and final summary.
+- **Paper skeleton** — `paper/paper.md` with full section structure, writing prompts, writer's guide, and annotated research guide with links to all cited papers and benchmarks.
+
+---
+
 ## [3.1.0] — 2026-04-09
 
 ### Added
